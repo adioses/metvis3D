@@ -1,0 +1,21 @@
+name: metvis3d
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - numpy
+  - pandas
+  - netcdf4
+  - h5netcdf
+  - wgrib2
+  - pygrib
+  - eccodes
+  - cftime
+  - pyyaml
+  - pydantic
+  - typer
+  - rich
+  - jupyterlab
+  - ipykernel
+  - pytest
+  - pip

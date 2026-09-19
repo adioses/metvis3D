@@ -1,0 +1,15 @@
+# Nunca enviar datos meteorológicos ni resultados al contexto de construcción.
+data/raw/
+data/standardized/
+outputs/
+assets/dem/
+assets/boundaries/
+paraview/render_data/
+paraview/render_cache/
+
+# Archivos locales y de desarrollo
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ipynb_checkpoints/
+.git/

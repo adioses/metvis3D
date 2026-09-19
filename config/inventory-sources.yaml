@@ -1,0 +1,24 @@
+# Fuentes bajo exploración. Estos valores no definen todavía el conversor.
+sources:
+  - id: GFS_COM
+    input_pattern: data/raw/GFS27/COM/gfs.t00z.pgrb2.0p25.f[0-9][0-9][0-9]
+    report_path: docs/inventory/gfs_com.md
+  - id: ECMWF_GLOBAL
+    input_pattern: data/raw/ECMWF27/*-oper-fc.grib2
+    report_path: docs/inventory/ecmwf_global.md
+  - id: ECMWF_SUD
+    input_pattern: data/raw/ECMWF27/SUD/*-oper-fc.grib2
+    report_path: docs/inventory/ecmwf_sud.md
+
+comparisons:
+  - id: ECMWF_GLOBAL_SUD
+    global_source: ECMWF_GLOBAL
+    regional_source: ECMWF_SUD
+    report_path: docs/inventory/ecmwf_global_sud_comparison.md
+    sample_forecast_hours: [0, 3, 240]
+    sample_fields:
+      - [0, 0, 0, isobaricInhPa, 500, instant]
+      - [0, 2, 2, isobaricInhPa, 500, instant]
+      - [0, 1, 1, isobaricInhPa, 500, instant]
+      - [0, 0, 0, heightAboveGround, 2, instant]
+      - [0, 1, 193, surface, 0, accum]

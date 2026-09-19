@@ -1,0 +1,26 @@
+name: metvis3d
+
+services:
+  dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: metvis3d:dev
+    working_dir: /workspace
+    volumes:
+      # Código editable: los cambios locales se reflejan sin reconstruir la imagen.
+      - .:/workspace
+      # Datos GRIB originales: disponibles dentro del contenedor como data/raw.
+      - ../source:/workspace/data/raw:ro
+    ports:
+      # Solo accesible desde esta Mac; Jupyter conserva su token de acceso.
+      - "127.0.0.1:8888:8888"
+    environment:
+      PYTHONPATH: /workspace/src
+    command:
+      - jupyter
+      - lab
+      - --ip=0.0.0.0
+      - --port=8888
+      - --no-browser
+      - --ServerApp.root_dir=/workspace

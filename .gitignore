@@ -1,0 +1,38 @@
+# Datos, cachés y productos generados
+data/raw/*
+!data/raw/.gitkeep
+data/standardized/*
+!data/standardized/.gitkeep
+outputs/*
+!outputs/.gitkeep
+
+# Insumos temporales específicos de ParaView
+paraview/render_data/*
+!paraview/render_data/.gitkeep
+paraview/render_cache/*
+!paraview/render_cache/.gitkeep
+
+# Activos grandes descargados
+assets/dem/*
+!assets/dem/.gitkeep
+assets/boundaries/*
+!assets/boundaries/.gitkeep
+
+# Índices y resultados locales
+*.idx
+*.nc
+*.grib
+*.grib2
+*.mp4
+*.mov
+*.png
+*.jpg
+
+# Python y Jupyter
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ipynb_checkpoints/
+.coverage
+*.egg-info/
+.venv/

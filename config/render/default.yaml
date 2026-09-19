@@ -1,0 +1,5 @@
+render:
+  resolution: [1920, 1080]
+  frames_per_second: 24
+  vertical_exaggeration: 1.0
+  preview_resolution: [960, 540]
