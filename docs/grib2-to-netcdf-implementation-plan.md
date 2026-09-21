@@ -21,13 +21,14 @@ actual el documento no introduce código operativo.
 
 ## Estado de implementación
 
-**Última actualización:** 2026-09-19  
-**Fase activa:** ninguna; se debe iniciar por la fase 0.  
-**Estado global:** diseño acordado, implementación no iniciada.
+**Última actualización:** 2026-09-21
+**Fase activa:** 1. Inventario WGRIB2.
+**Estado global:** contrato de ejecución y YAML inicial verificados;
+implementación del conversor no iniciada.
 
 | Fase | Estado | Resultado verificable | Próximo paso |
 |---|---|---|---|
-| 0. Contrato de ejecución y YAML | Pendiente | Interfaz y YAML inicial aprobados | Precisar las decisiones enumeradas en la fase 0. |
+| 0. Contrato de ejecución y YAML | Verificada | Interfaz y YAML inicial aprobados | Iniciar la fase 1 con el inventario WGRIB2. |
 | 1. Inventario WGRIB2 | Pendiente | Inventario completo y reproducible | Definir el comando y su formato exacto de salida. |
 | 2. Plan de variables y nombres | Pendiente | Plan por mensaje, tiempo y nivel | Resolver colisiones y unidades de presión. |
 | 3. NetCDF y subset | Pendiente | Estructura y recorte verificables | Definir límites geográficos y mallas admitidas. |
@@ -52,6 +53,12 @@ registran en `docs/DECISIONS.md`.
 | 2026-09-19 | Acordado | La asociación WGRIB2–PyGRIB es por posición dentro de cada archivo. | El inventario debe conservar archivo y posición de mensaje. |
 | 2026-09-19 | Acordado | Los remapeos conservan el nivel original y sólo reemplazan el nombre base y, opcionalmente, unidades mediante factor/desplazamiento. | `0-6-192` de ECMWF puede generar `TCDC` y multiplicarse por 100. |
 | 2026-09-19 | Pendiente | Definir la unidad final de `pressure`: Pa según el estándar o hPa como la referencia. | Afecta el eje vertical y la documentación, no la agrupación de perfiles. |
+| 2026-09-21 | Acordado | La interfaz recibe `grib_files`, `model`, `center`, `configuration_yml` y `area`; `center` y `model` se normalizan a minúsculas y no se verifican contra los GRIB. `run_conversion` recibe `output_dir`. | El nombre final es `{center}-{model}_{YYYYmmdd}_{HH}Z.nc`, con la inicialización común de la corrida GRIB. |
+| 2026-09-21 | Acordado | El YAML único es `config/grib2-definitions.yaml`. Para las disciplinas trabajadas 0, 1, 2, 3, 4 y 10, clasifica como locales las categorías o parámetros 192–254; las disciplinas 20 y 191 no se procesan. `name` y `units` son obligatorios, mientras `factor` y `offset` toman 1 y 0 por defecto. | Sólo una combinación incluida en la regla local puede recibir un remapeo; sin regla se advierte y se conserva el nombre WGRIB2. |
+| 2026-09-21 | Acordado | El código local ECMWF `0-1-193` se remapea a `APCP` con unidad objetivo `mm`, sin `factor` ni `offset` por ahora. | La conversión numérica de la fuente a milímetros queda pendiente antes de usar el campo como producto científico. |
+| 2026-09-21 | Acordado | El área usa `(west, east, south, north)`, admite cruce del antimeridiano y se ajusta a puntos de malla más próximos. Las longitudes finales se normalizan y ordenan en `-180..180`. | El área debe estar íntegramente contenida en el dominio fuente; no hay interpolación. |
+| 2026-09-21 | Acordado | Los campos no isobáricos conservan las dimensiones `(time, latitude, longitude)`, incluso cuando sólo haya dato para un tiempo. La salida existente no se sobrescribe y un NetCDF fallido se conserva para análisis. | Las posiciones temporales sin mensaje no se escriben. |
+| 2026-09-21 | Diferida | La unidad final de `pressure` se decidirá durante la fase 3 al implementar la inicialización NetCDF, usando inspecciones adicionales. | No bloquea la fase 0 ni modifica aún el estándar de datos. |
 
 ## Protocolo entre conversaciones
 
@@ -149,66 +156,69 @@ datos necesarias antes de leer o escribir archivos.
 ```python
 converter = Grib2ToNetCDF(
     grib_files=grib_files,
-    configuration_path=configuration_path,
+    model=model,
+    center=center,
+    configuration_yml="config/grib2-definitions.yaml",
     area=(west, east, south, north),  # opcional
 )
-converter.run_conversion(output_path)
+converter.run_conversion(output_dir)
 ```
 
 No se recibe una lista de variables: todos los mensajes inventariados se
-procesan. `area` limita únicamente la extensión geográfica de los valores
-escritos.
+procesan. `configuration_yml` usa por defecto
+`config/grib2-definitions.yaml`. La lista no puede estar vacía y se ordena de
+forma ascendente antes del inventario. `area` limita únicamente la extensión
+geográfica de los valores escritos.
 
 ### YAML inicial
 
-```yaml
-source:
-  centre: ECMWF
+El archivo único `config/grib2-definitions.yaml` usa una regla general para
+las disciplinas trabajadas 0, 1, 2, 3, 4 y 10. Las disciplinas 20 y 191 quedan
+fuera del alcance inicial. Su esquema es:
 
-parameter_status:
-  "0-1":
-    local_use: [[192, 254]]
-  "0-6":
-    local_use: [[192, 254]]
+```yaml
+local_definitions_reserved:
+  disciplines: [0, 1, 2, 3, 4, 10]
+  category_range: [192, 254]
+  parameter_range: [192, 254]
 
 remappings:
-  ECMWF:
-    # Mapeos revisados el 2026-09-19.
+  ecmwf:
     - match:
         discipline: 0
         category: 6
         parameter: 192
       output:
-        ncep_name: TCDC
+        name: TCDC
         units: "%"
         factor: 100
-        offset: 0
+    - match:
+        discipline: 0
+        category: 1
+        parameter: 193
+      output:
+        name: APCP
+        units: mm
 ```
 
-`parameter_status` clasifica códigos; no atribuye por sí solo significado
-meteorológico ni cambia un nombre. `remappings` contiene las equivalencias
-científicas aprobadas para un centro. La coincidencia inicial es por
-disciplina, categoría y parámetro; si una fuente futura tiene variantes de
-nivel o procesamiento temporal para la misma terna, esos criterios se
-añadirán a `match` antes de convertirla.
+`local_definitions_reserved` clasifica códigos; no atribuye por sí solo
+significado meteorológico ni cambia un nombre. `remappings` contiene las
+equivalencias científicas aprobadas para un centro. La coincidencia inicial es
+por disciplina, categoría y parámetro; `name` y `units` son obligatorios, y
+`factor` y `offset` toman 1 y 0 por defecto. Si una fuente futura tiene
+variantes de nivel o procesamiento temporal para la misma terna, esos
+criterios se añadirán a `match` antes de convertirla.
 
 ### Decisiones que deben cerrarse en esta fase
 
-1. Representación exacta de `area`, límites inclusivos y comportamiento para
-   un área que cruza el antimeridiano.
-2. Política si ya existe `output_path` y tratamiento de un archivo incompleto
-   creado por una corrida que falló. No se crearán NetCDF temporales.
-3. Unidades del eje vertical: el estándar actual prescribe `pressure` en Pa,
-   mientras la referencia conserva `lev` en milibares. Se mantendrá su lógica
-   de agrupación; falta confirmar si el valor final será `pressure` en Pa
-   (`nivel_mb * 100`) o si se actualizará formalmente el estándar.
-4. Tratamiento de campos estáticos, que el estándar permite sin dimensión
-   `time`.
+Las decisiones 1, 2 y 4 se aprobaron el 2026-09-21 y constan en el registro
+acumulativo. La unidad final de `pressure` se difiere a la fase 3, cuando se
+implemente e inspeccione la inicialización NetCDF; no bloquea este contrato.
 
 ### Criterio de cierre
 
-Existe un YAML de ejemplo válido para GFS/NCEP y ECMWF, y se aprueba la firma
-del constructor y de `run_conversion`.
+Existe el YAML válido `config/grib2-definitions.yaml`, aplicable a GFS/NCEP y
+ECMWF, y se aprobó la firma del constructor y de `run_conversion`.
 
 ## Fase 1 — Inventario WGRIB2
 

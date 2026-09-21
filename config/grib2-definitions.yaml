@@ -1,0 +1,36 @@
+# Configuración única del conversor GRIB2 a NetCDF.
+# Se utiliza remapeos para valores parametros reservados para uso local de centros
+# que no son ncep.
+# Disciplinas trabajadas: 
+# - 0: meteorológica 
+# - 1: hidrológica
+# - 2: superficie terrestre
+# - 3: teledetección satelital
+# - 4: meteorología espacial 
+# - 10: océano
+# No se procesan las disciplinas 20 ni 191 en este conversor inicial.
+
+local_definitions_reserved: 
+  disciplines: [0, 1, 2, 3, 4, 10]
+  # En las disciplinas trabajadas, las categorías y los parámetros de estos
+  # rangos se consideran reservados para uso local.
+  category_range: [192, 254]
+  parameter_range: [192, 254]
+
+remappings:
+  ecmwf:
+    - match:
+        discipline: 0
+        category: 6
+        parameter: 192
+      output:
+        name: TCDC
+        units: "%"
+        factor: 100
+    - match:
+        discipline: 0
+        category: 1
+        parameter: 193
+      output:
+        name: APCP
+        units: mm
