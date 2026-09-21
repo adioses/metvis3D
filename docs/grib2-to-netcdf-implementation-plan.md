@@ -16,21 +16,22 @@ al iniciar cada conversación de implementación y actualizarse al terminar una
 fase, una decisión o una verificación. Así evita que un chat nuevo reabra
 acuerdos ya definidos o dé por implementado trabajo que aún está pendiente.
 
-Cada fase debe precisarse y aprobarse antes de implementarla. En su estado
-actual el documento no introduce código operativo.
+Cada fase debe precisarse y aprobarse antes de implementarla. El documento
+registra el contrato y las verificaciones; el código operativo reside en
+`src/standardize/grib2_to_netcdf.py`.
 
 ## Estado de implementación
 
 **Última actualización:** 2026-09-21
-**Fase activa:** 1. Inventario WGRIB2.
-**Estado global:** contrato de ejecución y YAML inicial verificados;
-implementación del conversor no iniciada.
+**Fase activa:** 2. Plan de variables y nombres finales.
+**Estado global:** contrato de ejecución, YAML inicial e inventario WGRIB2
+verificados; falta planificar variables antes de crear el NetCDF.
 
 | Fase | Estado | Resultado verificable | Próximo paso |
 |---|---|---|---|
 | 0. Contrato de ejecución y YAML | Verificada | Interfaz y YAML inicial aprobados | Iniciar la fase 1 con el inventario WGRIB2. |
-| 1. Inventario WGRIB2 | Pendiente | Inventario completo y reproducible | Definir el comando y su formato exacto de salida. |
-| 2. Plan de variables y nombres | Pendiente | Plan por mensaje, tiempo y nivel | Resolver colisiones y unidades de presión. |
+| 1. Inventario WGRIB2 | Verificada | Inventario completo de muestras GFS y ECMWF | Construir el plan de variables y nombres finales. |
+| 2. Plan de variables y nombres | Pendiente | Plan por mensaje, tiempo y nivel | Definir remapeos, colisiones y unidades de presión. |
 | 3. NetCDF y subset | Pendiente | Estructura y recorte verificables | Definir límites geográficos y mallas admitidas. |
 | 4. Escritura con PyGRIB | Pendiente | Una pasada PyGRIB y NetCDF completo | Implementar sólo después de las fases 0–3. |
 | 5. Verificación científica | Pendiente | Casos GFS y ECMWF documentados | Ejecutar al disponer del conversor. |
@@ -43,8 +44,8 @@ de su fase y una evidencia enlazable: prueba, salida reproducible o documento.
 
 Las entradas se agregan al final de esta tabla; no se reescriben acuerdos
 históricos. Si una decisión cambia, se añade una nueva entrada que indique cuál
-sustituye. Las decisiones que cambien el contrato del proyecto también se
-registran en `docs/DECISIONS.md`.
+sustituye. Las decisiones de este conversor se registran exclusivamente en
+este documento.
 
 | Fecha | Estado | Acuerdo o decisión | Impacto en el diseño |
 |---|---|---|---|
@@ -59,21 +60,25 @@ registran en `docs/DECISIONS.md`.
 | 2026-09-21 | Acordado | El área usa `(west, east, south, north)`, admite cruce del antimeridiano y se ajusta a puntos de malla más próximos. Las longitudes finales se normalizan y ordenan en `-180..180`. | El área debe estar íntegramente contenida en el dominio fuente; no hay interpolación. |
 | 2026-09-21 | Acordado | Los campos no isobáricos conservan las dimensiones `(time, latitude, longitude)`, incluso cuando sólo haya dato para un tiempo. La salida existente no se sobrescribe y un NetCDF fallido se conserva para análisis. | Las posiciones temporales sin mensaje no se escriben. |
 | 2026-09-21 | Diferida | La unidad final de `pressure` se decidirá durante la fase 3 al implementar la inicialización NetCDF, usando inspecciones adicionales. | No bloquea la fase 0 ni modifica aún el estándar de datos. |
+| 2026-09-21 | Verificada | La fase 1 se implementó en `src/standardize/grib2_to_netcdf.py`. Ejecuta WGRIB2 una vez por archivo con `-names ncep -T -VT -domain -lev0 -nxny -ctl_inv`, conserva el orden por archivo y no lee matrices. | La asociación futura con PyGRIB usa el orden de las filas, sin columna de posición explícita. La ejecución manual con WGRIB2 3.8.0 inventarió 44 mensajes GFS y 246 ECMWF. |
+| 2026-09-21 | Acordado | El inventario conserva `var_name`, disciplina, categoría, parámetro, nivel textual, proceso estadístico, tiempos, dominio, `nx`, `ny`, descripción y unidades. La definición vertical interna de `ctl_inv` se descarta. | El nivel textual de `-lev0` será la única representación vertical disponible para la fase 2. |
+| 2026-09-21 | Acordado | La salida controlada de WGRIB2 se interpreta como ocho segmentos separados por `:`, con `ctl_inv` como último segmento. La terna disciplina-categoría-parámetro se toma de sus tres primeros componentes; un cuarto componente local no interviene. | El análisis es directo y sigue la estructura de la salida g2ctl, sin añadir `-varX`, `-ftime`, `-lev`, `-scan` ni `-grid`. |
+| 2026-09-21 | Acordado | La clave vigente de una salida de `remappings` es `output.name`; `output.ncep_name` era una referencia obsoleta. | La fase 2 aplicará `output.name` al construir el nombre final. |
+| 2026-09-21 | Acordado | Este conversor no incorpora pruebas automatizadas. Las verificaciones se documentan como ejecuciones manuales reproducibles en este plan. | No se crearán archivos de pruebas para el conversor ni se exigirá ese entregable en la fase 5. |
 
 ## Protocolo entre conversaciones
 
 Al iniciar un nuevo chat que continúe esta implementación:
 
 1. Leer `AGENTS.md`, este plan, `docs/data-standard.md`,
-   `docs/grib2-parameter-reference.md`, `docs/analysis/` y las entradas
-   pertinentes de `docs/DECISIONS.md` y `docs/STATUS.md`.
+   `docs/grib2-parameter-reference.md` y `docs/analysis/`.
 2. Identificar en la tabla de estado la fase activa y limitar el trabajo a su
    objetivo y decisiones pendientes.
 3. No implementar una fase posterior por anticipación; primero cerrar el
    criterio verificable de la fase actual.
 4. Si aparece una decisión científica o de contrato, documentarla antes de
-   codificarla. Si sólo afecta este conversor, añadirla al registro de este
-   plan; si afecta al proyecto, añadirla también a `docs/DECISIONS.md`.
+   codificarla en el registro de este plan. Las decisiones de este conversor no
+   se añaden a `docs/DECISIONS.md` ni a `docs/STATUS.md`.
 
 Al cerrar una conversación con avance real:
 
@@ -81,8 +86,6 @@ Al cerrar una conversación con avance real:
 2. Añadir al registro una entrada con la decisión, implementación o hallazgo
    verificable, incluyendo ruta de código, prueba o inventario cuando exista.
 3. Escribir el siguiente paso concreto en la columna `Próximo paso`.
-4. Actualizar `docs/STATUS.md` sólo si el avance cambia materialmente el estado
-   general del proyecto.
 
 No debe marcarse una fase como `Verificada` sólo porque exista código: debe
 hacerse luego de indicacion explicita
@@ -100,9 +103,9 @@ hacerse luego de indicacion explicita
 - PyGRIB lee los valores de los mensajes. Las coordenadas necesarias para el
   subset se obtienen del primer mensaje de esa misma pasada. PyGRIB no define
   el nombre final de las variables.
-- La asociación entre una fila de inventario y un mensaje PyGRIB es posicional
-  dentro del mismo archivo. No se realizará una pasada PyGRIB adicional para
-  contar o validar encabezados.
+- La asociación entre una fila de inventario y un mensaje PyGRIB es el orden de
+  las filas dentro del mismo archivo. No se almacena una posición explícita ni
+  se realizará una pasada PyGRIB adicional para contar o validar encabezados.
 - El tiempo válido se toma de WGRIB2 con `-VT` y se conserva tal como llega,
   sin exigir frecuencia regular ni completar plazos ausentes.
 - Los niveles de presión se conservan en su orden nativo descendente, siguiendo
@@ -229,21 +232,30 @@ información necesaria para planificar el NetCDF sin decodificar matrices.
 
 ### Reglas
 
-- Ejecutar WGRIB2 una vez por archivo, siempre con `-names ncep`.
-- El comando de inventario deberá producir y el analizador deberá conservar:
-  posición de mensaje, archivo, nombre NCEP, disciplina-categoría-parámetro,
-  nivel textual y código de nivel, procesamiento temporal, tiempo válido,
-  tiempo de referencia, tamaño y dominio de malla, y unidades/descripción si
-  WGRIB2 las entrega.
-- El formato de salida se analizará por etiquetas, no por posiciones frágiles
-  de una lista separada por `:`.
+- Ejecutar WGRIB2 una vez por archivo con:
+
+  ```text
+  wgrib2 -names ncep -T -VT -domain -lev0 -nxny -ctl_inv <archivo>
+  ```
+
+- El inventario conserva, por cada mensaje y en el orden del archivo:
+  `grib_file`, `var_name`, disciplina, categoría, parámetro, nivel textual,
+  proceso estadístico, tiempo válido, tiempo de referencia, dominio, `nx`,
+  `ny`, descripción y unidades cuando WGRIB2 las entrega.
+- La salida se interpreta directamente como ocho segmentos separados por `:`:
+  mensaje, byte, fecha de corrida, tiempo válido, dominio, nivel, tamaño de
+  grilla y `ctl_inv`. La definición vertical interna de `ctl_inv` no se
+  conserva; sus tres primeros códigos de parámetro son disciplina, categoría y
+  parámetro, y un cuarto código local se ignora.
+- `domain`, `nx` y `ny` registran extensión y tamaño de la malla. La
+  comprobación de su compatibilidad para crear el NetCDF se define en la fase 3.
 - El inventario no filtra mensajes y no lee sus matrices de datos.
 
 ### Métodos previstos
 
-- `_run_wgrib2_inventory(grib_file)`
-- `_parse_wgrib2_inventory(grib_file, output)`
-- `_build_wgrib2_inventory()`
+- `_run_wgrib2_command(grib_file)`
+- `_parse_wgrib2_output(grib_file, output)`
+- `_build_inventory()`
 
 ### Criterio de cierre
 
@@ -264,7 +276,7 @@ PyGRIB.
 1. El nombre NCEP obtenido de WGRIB2 es el nombre base inicial.
 2. Si la terna está en un rango local para el `source.centre`, se consulta
    `remappings`.
-3. Una regla encontrada reemplaza el nombre base por `output.ncep_name` y
+3. Una regla encontrada reemplaza el nombre base por `output.name` y
    registra `units`, `factor` y `offset` para la escritura.
 4. Sin regla, no se infiere equivalencia ni conversión. Se emite una
    advertencia con la firma disponible y se conserva el nombre WGRIB2.
@@ -399,13 +411,11 @@ pasen a ser contractuales.
 
 ### Entregables
 
-- Pruebas automatizadas con archivos de muestra o inventarios reproducibles.
-- Actualización de `docs/DECISIONS.md` para las decisiones aprobadas.
-- Actualización de `docs/STATUS.md` sólo después de una implementación y
-  verificación reales.
+- Ejecuciones manuales reproducibles con inventarios y casos de fuentes
+  documentados en este plan.
 
 ## Orden de implementación
 
-La próxima conversación debe comenzar por la fase 0. No se implementará una
+La próxima conversación debe comenzar por la fase 2. No se implementará una
 fase posterior mientras sus decisiones pendientes no estén definidas y su
 criterio de cierre no pueda verificarse.
