@@ -7,7 +7,8 @@ GRIB2 en un único NetCDF final. La clase no interpola, no rellena vacíos y no
 crea productos parciales por variable ni por tiempo.
 
 WGRIB2 inventaría los mensajes, resuelve la codificación que interesa al flujo
-y determina su nomenclatura NCEP. PyGRIB se usa una sola vez por archivo para
+y determina su nomenclatura NCEP. La fase 3 usa PyGRIB sólo para obtener las
+coordenadas del primer mensaje; la fase 4 lo abre una vez por archivo para
 leer las matrices de valores que se escribirán en NetCDF. No se usará CFGRIB
 ni Xarray.
 
@@ -23,17 +24,17 @@ registra el contrato y las verificaciones; el código operativo reside en
 ## Estado de implementación
 
 **Última actualización:** 2026-09-22
-**Fase activa:** 3. Estructura NetCDF y subset geográfico.
-**Estado global:** contrato de ejecución, inventario WGRIB2 y consolidación de
-variables verificados; falta crear la estructura NetCDF y preparar el subset.
+**Fase activa:** 4. Lectura única PyGRIB y escritura.
+**Estado global:** contrato de ejecución, inventario WGRIB2, consolidación de
+variables y estructura NetCDF verificados; falta escribir las matrices.
 
 | Fase | Estado | Resultado verificable | Próximo paso |
 |---|---|---|---|
 | 0. Contrato de ejecución y YAML | Verificada | Interfaz y YAML inicial aprobados | Iniciar la fase 1 con el inventario WGRIB2. |
 | 1. Inventario WGRIB2 | Verificada | Inventario completo de GFS y ECMWF, en orden por archivo | Consolidar variables, tiempos y niveles. |
 | 2. Plan de variables y nombres | Verificada | Nombres finales, remapeos, tiempos y niveles de GFS y ECMWF | Crear la estructura NetCDF y preparar el subset. |
-| 3. NetCDF y subset | En definición | Estructura y recorte verificables | Implementar `lev`, grilla normalizada y subset. |
-| 4. Escritura con PyGRIB | Pendiente | Una pasada PyGRIB y NetCDF completo | Implementar sólo después de las fases 0–3. |
+| 3. NetCDF y subset | Verificada | Estructura, coordenadas e índices de recorte verificables | Leer matrices y escribir el NetCDF final. |
+| 4. Escritura con PyGRIB | Pendiente | Una pasada PyGRIB y NetCDF completo | Implementar la escritura de matrices. |
 | 5. Verificación científica | Pendiente | Casos GFS y ECMWF documentados | Ejecutar al disponer del conversor. |
 
 Estados permitidos: `Pendiente`, `En definición`, `En implementación`,
@@ -78,6 +79,10 @@ este documento.
 | 2026-09-22 | Acordado | `area` usa el orden de bbox `(west, south, east, north)`, igual que `shapely.box`. | La validación construye primero el bbox del área, después el dominio WGRIB2 y finalmente comprueba su contención. |
 | 2026-09-22 | Implementado | Sustituye la validación de disponibilidad temporal: el usuario es responsable de entregar los GRIB sin plazos faltantes. El conversor conserva todos los tiempos válidos únicos que entregue WGRIB2, sin comprobar cadencia, rango ni intervalos. | Se retiró `forecast_availability` del YAML y de `src/standardize/grib2_to_netcdf.py`; el eje `time` se construye directamente desde `valid_time`. |
 | 2026-09-22 | Verificada | Se verificó la fase 2 en el contenedor Docker `dev`, con el entorno `metvis3d`: un inventario en memoria con tiempos irregulares conserva su eje temporal y consolida variables; el remapeo ECMWF `0-6-192` genera `tcdcclm`, unidad `%` y factor 100. | La consolidación de variables, los ejes de tiempo y presión, los remapeos y la responsabilidad temporal del usuario cumplen el criterio de cierre de la fase 2. |
+| 2026-09-22 | Acordado | Sustituye la inicialización horizontal diferida: la fase 3 abre sólo el primer GRIB, obtiene `latlons()` de su primer mensaje y no lee matrices meteorológicas. | `_prepare_netcdf_grid()` crea las coordenadas horizontales y conserva los índices que la fase 4 aplicará a todas las matrices. |
+| 2026-09-22 | Acordado | Sustituye la salida longitudinal única `-180..180`: el constructor recibe `longitude_convention`, con `0_360` como valor predeterminado y `-180_180` como alternativa. El área de usuario continúa en EPSG:4326 `-180..180`. | Las coordenadas y las columnas GRIB se normalizan y ordenan según la convención elegida; el NetCDF registra la convención en un atributo global. |
+| 2026-09-22 | Acordado | Las fuentes controladas se tratan como grillas geográficas rectangulares; no se repite un contraste entre `nx`/`ny` inventariado y `latlons()`, ni se valida su rectangularidad en la fase 3. | El inventario ya garantiza una única resolución por corrida; una grilla con otra geometría requerirá un acuerdo previo antes de ser admitida. |
+| 2026-09-22 | Verificada | La fase 3 se implementó en `src/standardize/grib2_to_netcdf.py`: `_create_netcdf()` crea dimensiones, coordenadas, atributos y variables; `_prepare_netcdf_grid()` normaliza, ordena y recorta la grilla, conservando índices de matriz. En Docker `dev` se verificaron GFS y ECMWF reales, ambas convenciones longitudinales, con y sin área; la estructura NetCDF se verificó en memoria sin crear productos temporales. | La fase 4 sólo leerá matrices PyGRIB y las escribirá usando los índices geográficos preparados. |
 
 ## Protocolo entre conversaciones
 
@@ -113,12 +118,13 @@ hacerse luego de indicacion explicita
   variables previa a la conversión.
 - El nombre inicial de un campo proviene de WGRIB2. Sólo una regla YAML
   explícita puede reemplazarlo para un parámetro local de un centro no NCEP.
-- PyGRIB lee los valores de los mensajes. Las coordenadas necesarias para el
-  subset se obtienen del primer mensaje de esa misma pasada. PyGRIB no define
-  el nombre final de las variables.
+- La fase 3 abre sólo el primer GRIB para obtener `latlons()` de su primer
+  mensaje. La fase 4 lee los valores de los mensajes una vez por archivo;
+  PyGRIB no define el nombre final de las variables.
 - La asociación entre una fila de inventario y un mensaje PyGRIB es el orden de
   las filas dentro del mismo archivo. No se almacena una posición explícita ni
-  se realizará una pasada PyGRIB adicional para contar o validar encabezados.
+  se realizará una pasada PyGRIB adicional para contar o validar encabezados;
+  la lectura única de `latlons()` de fase 3 no lee valores ni cumple ese fin.
 - El tiempo válido se toma de WGRIB2 con `-VT`. El eje `time` conserva todos
   los tiempos válidos únicos recibidos, sin exigir cadencia, rango ni intervalos.
   El usuario entrega una lista de GRIB sin plazos faltantes para su uso.
@@ -127,9 +133,10 @@ hacerse luego de indicacion explicita
   perfil de presión y se agrupa con los demás niveles de la misma variable. El
   NetCDF usará el eje `lev` con unidades `millibars`.
 - El área de recorte es un rectángulo continuo en `-180..180` y `-90..90`; no
-  puede cruzar el antimeridiano. WGRIB2 valida su contención y, antes del
-  recorte, PyGRIB normaliza y reordena la malla fuente junto con los valores.
-  El recorte no implica interpolación ni alteración de los valores.
+  puede cruzar el antimeridiano. WGRIB2 valida su contención. La fase 3
+  prepara coordenadas e índices en la convención longitudinal elegida y la
+  fase 4 aplica esos índices a los valores, sin interpolación ni alteración de
+  sus valores.
 - Las únicas transformaciones de valores autorizadas son las declaradas en
   YAML mediante `factor` y `offset`.
 - Los errores se informan con el modelo, corrida, archivo y mensaje afectados,
@@ -150,19 +157,24 @@ archivos GRIB2 + YAML + área opcional
        apertura directa del NetCDF final
                  |
                  v
+PyGRIB: `latlons()` del primer mensaje
+                 |
+                 v
+coordenadas + subset + variables NetCDF vacías
+                 |
+                 v
 PyGRIB: una lectura secuencial de valores por archivo
                  |
                  v
- coordenadas + subset + conversión YAML + escritura
+subset + conversión YAML + escritura de matrices
                  |
                  v
           cierre del NetCDF final
 ```
 
-La apertura del NetCDF no obliga a una segunda lectura PyGRIB. El primer
-mensaje de la pasada de escritura aporta las coordenadas necesarias para
-calcular el recorte y terminar de crear las dimensiones horizontales y las
-variables NetCDF.
+La fase 3 abre sólo el primer GRIB para obtener sus coordenadas con
+`latlons()`. La fase 4 abre cada archivo para su única pasada de matrices; no
+repite lecturas de coordenadas ni cálculos de subset.
 
 ## Fase 0 — Definir el contrato de ejecución y el YAML
 
@@ -180,6 +192,7 @@ converter = Grib2ToNetCDF(
     center=center,
     configuration_yml="config/grib2-definitions.yaml",
     area=(west, south, east, north),  # opcional
+    longitude_convention="0_360",  # opcional
 )
 converter.run_conversion(output_dir)
 ```
@@ -350,8 +363,8 @@ conversiones declarados. No se leen matrices ni se crea un NetCDF.
 
 ### Objetivo
 
-Crear directamente el único NetCDF final y definir su estructura sin requerir
-una lectura PyGRIB previa de los archivos.
+Crear directamente el único NetCDF final, sus coordenadas y el plan de índices
+geográficos que la fase 4 aplicará a las matrices.
 
 ### Reglas
 
@@ -361,29 +374,34 @@ una lectura PyGRIB previa de los archivos.
 - Se crean primero el archivo, los ejes de tiempo y `lev` conocidos por el
   inventario y los atributos globales. El eje `lev` conserva niveles
   isobáricos descendentes y usa unidades `millibars`, igual que la referencia.
-- Al recibir el primer mensaje PyGRIB de la fase 4, `latlons()` aporta la
-  malla: entonces se calculan los índices de `area`, se crean `latitude` y
-  `longitude`, las dimensiones horizontales y las variables del plan.
-- PyGRIB puede entregar longitudes nativas en `0..360`. Antes del subset se
-  normalizan a `-180..180` y se reordenan con los mismos índices las
-  longitudes, coordenadas y columnas de valores, sin interpolar.
+- La fase 3 abre sólo el primer GRIB y obtiene `latlons()` de su primer
+  mensaje. No lee matrices meteorológicas. Con esas coordenadas crea
+  `latitude`, `longitude`, las dimensiones horizontales y las variables del
+  plan.
+- El constructor recibe `longitude_convention`: `0_360` es el valor
+  predeterminado y `-180_180` es una alternativa. PyGRIB puede entregar
+  cualquier convención nativa; las longitudes se normalizan y ordenan según la
+  salida elegida. El mismo orden de índices se aplicará a las columnas de
+  valores durante la fase 4, sin interpolar.
 - El área ya validada en fase 2 es un rectángulo continuo que no cruza el
-  antimeridiano; sus índices se calculan sobre la grilla reordenada.
-- La malla debe ser compatible con coordenadas geográficas rectangulares.
-  Una malla no compatible debe informarse y detener la corrida hasta definir
-  su tratamiento.
+  antimeridiano y se expresa siempre en EPSG:4326 `-180..180`; sus índices se
+  calculan sobre la grilla ordenada en la convención de salida.
+- Para las fuentes controladas se asume una grilla geográfica rectangular. No
+  se repite la comprobación de `nx`/`ny` contra `latlons()` ni se valida la
+  rectangularidad durante esta fase.
 
 ### Métodos previstos
 
-- `_initialize_netcdf_time_and_lev(output_path)`
-- `_initialize_netcdf_grid(first_grib_message)`
-- `_prepare_area_subset(latitude, longitude)`
-- `_create_netcdf_variables()`
+- `run_conversion(output_dir)`
+- `_create_netcdf(netcdf_output)`
+- `_prepare_netcdf_grid(grib_file)`
 
 ### Criterio de cierre
 
-Una muestra con y sin `area` produce la estructura dimensional acordada y
-coordenadas que corresponden exactamente a las posiciones escritas.
+GFS y ECMWF, con y sin `area` y en las dos convenciones longitudinales,
+producen coordenadas e índices de origen correctos. El NetCDF en memoria
+contiene las dimensiones, coordenadas y variables acordadas; la fase 4 usará
+esos índices para escribir las posiciones correspondientes.
 
 ## Fase 4 — Lectura única PyGRIB y escritura
 
@@ -398,9 +416,10 @@ explícitas y escribirlos en el NetCDF final.
   orden.
 - El índice de iteración se usa para recuperar la fila WGRIB2 del mismo
   archivo; no hay una pasada previa de PyGRIB para encabezados ni conteos.
-- El primer mensaje inicializa la malla y las variables NetCDF, como se
-  describe en la fase 3.
-- Cada matriz se recorta mediante los índices geográficos definidos.
+- La malla, las variables NetCDF y los índices geográficos ya fueron creados
+  en la fase 3; no se vuelven a calcular durante la lectura de valores.
+- Cada matriz se recorta y, cuando corresponda, se reordena mediante los
+  índices geográficos definidos.
 - Si la fila tiene remapeo, se calcula `values * factor + offset`; no se
   evalúan fórmulas arbitrarias.
 - La matriz final se escribe en su índice de tiempo y, para niveles
@@ -410,8 +429,8 @@ explícitas y escribirlos en el NetCDF final.
 
 ### Métodos previstos
 
-- `_write_grib_messages(netcdf_dataset)`
-- `_write_message(netcdf_dataset, inventory_row, grib_message)`
+- `_write_grib_messages(dataset)`
+- `_write_message(dataset, inventory_row, grib_message)`
 - `_apply_value_conversion(values, conversion)`
 
 ### Criterio de cierre

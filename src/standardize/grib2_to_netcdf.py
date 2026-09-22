@@ -7,8 +7,11 @@ from collections.abc import Sequence
 from datetime import datetime
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
+import pygrib
 import yaml
+from netCDF4 import Dataset, date2num
 from shapely.geometry import box
 
 
@@ -20,9 +23,10 @@ class Grib2ToNetCDF:
 
     Inventaría todos los mensajes de los archivos ordenados y conserva el orden
     de cada archivo para asociarlo con la lectura secuencial de PyGRIB durante
-    la escritura futura. No decodifica matrices, no selecciona variables ni
-    crea archivos NetCDF. La consolidación posterior
-    agrupa las variables NetCDF y resuelve sus remapeos YAML.
+    la escritura futura. No decodifica ni escribe matrices meteorológicas. La
+    consolidación agrupa las variables NetCDF y resuelve sus remapeos YAML. La
+    fase de estructura crea el único NetCDF final y obtiene sólo las
+    coordenadas del primer mensaje PyGRIB.
 
     Args:
         grib_files: Archivos GRIB2 de una misma corrida meteorológica.
@@ -30,7 +34,9 @@ class Grib2ToNetCDF:
         center: Centro productor usado por los remapeos de fases posteriores.
         configuration_yml: Configuración única del conversor.
         area: Área opcional `(west, south, east, north)` para una fase
-            posterior de recorte geográfico.
+            de recorte geográfico.
+        longitude_convention: Rango longitudinal del NetCDF final:
+            `0_360` o `-180_180`.
     """
 
     _DESCRIPTION_WITH_UNITS = re.compile(
@@ -51,6 +57,7 @@ class Grib2ToNetCDF:
         center: str,
         configuration_yml: str | Path = "config/grib2-definitions.yaml",
         area: tuple[float, float, float, float] | None = None,
+        longitude_convention: str = "0_360",
     ) -> None:
         if not grib_files:
             raise ValueError("Se requiere al menos un archivo GRIB2 para construir el inventario.")
@@ -58,24 +65,52 @@ class Grib2ToNetCDF:
             raise ValueError("Se requiere el identificador del modelo para construir el inventario.")
         if not center.strip():
             raise ValueError("Se requiere el centro productor para construir el inventario.")
+        if longitude_convention not in {"0_360", "-180_180"}:
+            raise ValueError("La convención longitudinal debe ser '0_360' o '-180_180'.")
 
         self.grib_files = sorted(Path(grib_file) for grib_file in grib_files)
         self.model = model.lower()
         self.center = center.lower()
         self.configuration_yml = Path(configuration_yml)
         self.area = area
+        self.longitude_convention = longitude_convention
         self.wgrib2_inventory: pd.DataFrame | None = None
         self.netcdf_variables: pd.DataFrame | None = None
         self.time_list: list[datetime] = []
         self.time_map: dict[datetime, int] = {}
         self.pressure_levels: list[int] = []
         self.lev_map: dict[int, int] = {}
+        self.domain: str | None = None
+        self.latitude_indices: np.ndarray | None = None
+        self.longitude_indices: np.ndarray | None = None
 
     def __str__(self) -> str:
         return f"Grib2ToNetCDF inventariando {len(self.grib_files)} archivos GRIB2"
 
     def __repr__(self) -> str:
         return f"<Grib2ToNetCDF con {len(self.grib_files)} archivos GRIB2>"
+
+    def run_conversion(self, output_dir: str | Path) -> Path:
+        """Crea la estructura del NetCDF final de una corrida meteorológica."""
+
+        # Lectura de configuración, revisión de archivos e inventario WGRIB2
+        self._build_inventory()
+        self._build_netcdf_variables()
+
+        # Construcción de coordenadas y estructura NetCDF
+        reference_time = self.wgrib2_inventory["reference_time"].iloc[0]
+        netcdf_output = Path(output_dir) / (
+            f"{self.center}-{self.model}_{reference_time:%Y%m%d}_{reference_time:%H}Z.nc"
+        )
+        if netcdf_output.exists():
+            raise RuntimeError(f"Ya existe el NetCDF final {netcdf_output.name} del modelo {self.model}.")
+
+        netcdf_output.parent.mkdir(parents=True, exist_ok=True)
+        dataset = self._create_netcdf(netcdf_output)
+        dataset.close()
+
+        logger.info("Estructura NetCDF completada para %s: %s", self.model, netcdf_output)
+        return netcdf_output
 
     # ------------------------------------------------------------------
     # Inventario WGRIB2
@@ -238,9 +273,6 @@ class Grib2ToNetCDF:
             raise RuntimeError(f"Los archivos no tienen la misma resolución (distintos grid shapes)")
 
         self.domain = domains[0]
-        grid_shape = grid_shapes.iloc[0]
-        self.grid_shape = (int(grid_shape["nx"]), int(grid_shape["ny"]))
-
         # Verificación que el área de subset es valida
         if self.area is None:
             return
@@ -282,6 +314,110 @@ class Grib2ToNetCDF:
             pressure_level: index
             for index, pressure_level in enumerate(self.pressure_levels)
         }
+
+    def _create_netcdf(self, netcdf_output: Path) -> Dataset:
+        """Crea el NetCDF final, sus coordenadas y sus variables."""
+
+        # Abriendo el NetCDF y añadiendo atributos
+        dataset = Dataset(netcdf_output, "w", format="NETCDF4")
+        reference_time = self.wgrib2_inventory["reference_time"].iloc[0]
+        dataset.title = "Conversión GRIB2 a NetCDF"
+        dataset.model = self.model
+        dataset.center = self.center
+        dataset.domain = self.domain
+        dataset.reference_time = reference_time.isoformat()
+        dataset.longitude_convention = self.longitude_convention
+
+        latitude, longitude = self._prepare_netcdf_grid(self.grib_files[0])
+
+        # Creando Dimensiones
+        dataset.createDimension("time", len(self.time_list))
+        dataset.createDimension("lev", len(self.pressure_levels))
+        dataset.createDimension("latitude", len(latitude))
+        dataset.createDimension("longitude", len(longitude))
+
+        # Variable time
+        time_coordinate = dataset.createVariable("time", "f8", ("time",))
+        time_coordinate.units = "hours since 1800-01-01 00:00:00"
+        time_coordinate[:] = date2num(self.time_list, time_coordinate.units)
+
+        # Variable lev
+        lev_coordinate = dataset.createVariable("lev", "i2", ("lev",))
+        lev_coordinate.units = "millibars"
+        lev_coordinate[:] = self.pressure_levels
+
+        # Variable latitud
+        latitude_coordinate = dataset.createVariable("latitude", "f4", ("latitude",))
+        latitude_coordinate.units = "degrees_north"
+        latitude_coordinate[:] = latitude
+
+        # Variable longitud
+        longitude_coordinate = dataset.createVariable("longitude", "f4", ("longitude",))
+        longitude_coordinate.units = "degrees_east"
+        longitude_coordinate[:] = longitude
+
+        # Creando la variables para las demas
+        for variable in self.netcdf_variables.itertuples(index=False):
+            dimensions = ("time", "lev", "latitude", "longitude") if variable.is_pressure else ("time", "latitude", "longitude")
+            netcdf_variable = dataset.createVariable(variable.var_name, "f4", dimensions, zlib=True)
+
+            if variable.output_units is not None:
+                netcdf_variable.units = variable.output_units
+        return dataset
+
+    def _prepare_netcdf_grid(self, grib_file: Path) -> tuple[np.ndarray, np.ndarray]:
+        """Lee la grilla del primer GRIB y prepara las coordenadas NetCDF.
+
+        Obtiene las coordenadas con `latlons()`, normaliza las longitudes
+        según `longitude_convention`, calcula el orden de las columnas y
+        aplica el área opcional. Conserva `latitude_indices` y
+        longitude_indices` para que la escritura posterior recorte y
+        reordene las matrices GRIB sin interpolación. Devuelve las coordenadas
+        finales del NetCDF sin leer matrices meteorológicas.
+        """
+
+        # Lectura de coordenadas del primer mensaje GRIB.
+        with pygrib.open(str(grib_file)) as source_grib:
+            latitude, longitude = source_grib.message(1).latlons()
+        latitude = latitude[:, 0]
+        longitude = longitude[0, :]
+
+        # Normalización de longitudes para el NetCDF final.
+        if self.longitude_convention == "0_360":
+            longitude = np.mod(longitude, 360)
+        else:
+            longitude = (longitude + 180) % 360 - 180
+
+        # Orden de columnas de la matriz GRIB en la convención final.
+        latitude_indices = np.arange(len(latitude))
+        longitude_indices = np.argsort(longitude)
+        ordered_longitude = longitude[longitude_indices]
+
+        # Selección de la grilla solicitada por el usuario.
+        if self.area is not None:
+            west, south, east, north = self.area
+            latitude_mask = (latitude >= south) & (latitude <= north)
+            if self.longitude_convention == "0_360":
+                west = west % 360
+                east = east % 360
+                longitude_mask = (
+                    (ordered_longitude >= west) & (ordered_longitude <= east)
+                    if west <= east
+                    else (ordered_longitude >= west) | (ordered_longitude <= east)
+                )
+            else:
+                longitude_mask = (ordered_longitude >= west) & (ordered_longitude <= east)
+            latitude_indices = np.flatnonzero(latitude_mask)
+            longitude_indices = longitude_indices[longitude_mask]
+            if not len(latitude_indices) or not len(longitude_indices):
+                raise RuntimeError(f"El área solicitada no contiene puntos de la malla del modelo {self.model}.")
+
+        # Índices reutilizados durante la escritura de matrices.
+        self.latitude_indices = latitude_indices
+        self.longitude_indices = longitude_indices
+
+        # Coordenadas finales del NetCDF.
+        return latitude[latitude_indices], longitude[longitude_indices]
 
     def _build_netcdf_variables(self) -> pd.DataFrame:
         """Agrupa los mensajes inventariados por su variable NetCDF final."""
