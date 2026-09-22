@@ -9,6 +9,7 @@ dependencies:
   - h5netcdf
   - wgrib2
   - pygrib
+  - shapely
   - eccodes
   - cftime
   - pyyaml

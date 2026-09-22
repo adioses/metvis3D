@@ -19,18 +19,12 @@ local_definitions_reserved:
 
 remappings:
   ecmwf:
-    - match:
-        discipline: 0
-        category: 6
-        parameter: 192
+    "0-6-192":
       output:
         name: TCDC
         units: "%"
         factor: 100
-    - match:
-        discipline: 0
-        category: 1
-        parameter: 193
+    "0-1-193":
       output:
         name: APCP
         units: mm

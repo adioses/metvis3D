@@ -22,17 +22,17 @@ registra el contrato y las verificaciones; el código operativo reside en
 
 ## Estado de implementación
 
-**Última actualización:** 2026-09-21
-**Fase activa:** 2. Plan de variables y nombres finales.
-**Estado global:** contrato de ejecución, YAML inicial e inventario WGRIB2
-verificados; falta planificar variables antes de crear el NetCDF.
+**Última actualización:** 2026-09-22
+**Fase activa:** 3. Estructura NetCDF y subset geográfico.
+**Estado global:** contrato de ejecución, inventario WGRIB2 y consolidación de
+variables verificados; falta crear la estructura NetCDF y preparar el subset.
 
 | Fase | Estado | Resultado verificable | Próximo paso |
 |---|---|---|---|
 | 0. Contrato de ejecución y YAML | Verificada | Interfaz y YAML inicial aprobados | Iniciar la fase 1 con el inventario WGRIB2. |
-| 1. Inventario WGRIB2 | Verificada | Inventario completo de muestras GFS y ECMWF | Construir el plan de variables y nombres finales. |
-| 2. Plan de variables y nombres | Pendiente | Plan por mensaje, tiempo y nivel | Definir remapeos, colisiones y unidades de presión. |
-| 3. NetCDF y subset | Pendiente | Estructura y recorte verificables | Definir límites geográficos y mallas admitidas. |
+| 1. Inventario WGRIB2 | Verificada | Inventario completo de GFS y ECMWF, en orden por archivo | Consolidar variables, tiempos y niveles. |
+| 2. Plan de variables y nombres | Verificada | Nombres finales, remapeos, tiempos y niveles de GFS y ECMWF | Crear la estructura NetCDF y preparar el subset. |
+| 3. NetCDF y subset | En definición | Estructura y recorte verificables | Implementar `lev`, grilla normalizada y subset. |
 | 4. Escritura con PyGRIB | Pendiente | Una pasada PyGRIB y NetCDF completo | Implementar sólo después de las fases 0–3. |
 | 5. Verificación científica | Pendiente | Casos GFS y ECMWF documentados | Ejecutar al disponer del conversor. |
 
@@ -65,6 +65,19 @@ este documento.
 | 2026-09-21 | Acordado | La salida controlada de WGRIB2 se interpreta como ocho segmentos separados por `:`, con `ctl_inv` como último segmento. La terna disciplina-categoría-parámetro se toma de sus tres primeros componentes; un cuarto componente local no interviene. | El análisis es directo y sigue la estructura de la salida g2ctl, sin añadir `-varX`, `-ftime`, `-lev`, `-scan` ni `-grid`. |
 | 2026-09-21 | Acordado | La clave vigente de una salida de `remappings` es `output.name`; `output.ncep_name` era una referencia obsoleta. | La fase 2 aplicará `output.name` al construir el nombre final. |
 | 2026-09-21 | Acordado | Este conversor no incorpora pruebas automatizadas. Las verificaciones se documentan como ejecuciones manuales reproducibles en este plan. | No se crearán archivos de pruebas para el conversor ni se exigirá ese entregable en la fase 5. |
+| 2026-09-21 | Acordado | El análisis, la revisión y la discusión de diseño no autorizan cambios. Sólo se implementa o modifica código, configuración o documentación cuando el usuario lo indique explícitamente. | Antes de una instrucción explícita, el trabajo se limita a lectura, diagnóstico y propuesta; no se alteran archivos del proyecto. |
+| 2026-09-21 | Verificada | Sustituye la enumeración previa del inventario: la fase 1 compacta la identidad de parámetro como `parameter_signature` y construye el nombre NCEP inicial con `wgrib2_name` y `netcdf_suffix`; ya no conserva disciplina, categoría, parámetro ni proceso estadístico como columnas independientes. | El inventario conserva sólo los campos requeridos para asociar mensajes y consolidar variables, sin metadatos redundantes. |
+| 2026-09-21 | Verificada | Los inventarios completos de grillas enteras registraron 32,631 mensajes en 129 archivos GFS (110.68 s) y 11,313 mensajes en 66 archivos ECMWF (288.28 s). | La evidencia sustituye las muestras reducidas previas y confirma el orden de mensajes de cada archivo. |
+| 2026-09-21 | Verificada | La fase 2 agrupa mensajes por `parameter_signature`, resuelve remapeos una sola vez por variable y construye `netcdf_variables` con nombre final, unidades, factor, offset y estado de remapeo. La ejecución manual consolidó 56 variables, 129 tiempos y 26 niveles GFS; y 49 variables, 65 tiempos y 13 niveles ECMWF. | `wgrib2_inventory` conserva el nombre final por mensaje; la conversión se conserva por variable y se aplicará durante la escritura. |
+| 2026-09-21 | Acordado | Sustituye la regla temporal sin validación de intervalos: la disponibilidad se declara por modelo y tramo en `forecast_availability`. Cada plazo y cada intervalo entre plazos debe pertenecer a la disponibilidad del tramo correspondiente, sin exigir una cadencia única para toda la corrida. | GFS y ECMWF pueden usar cadencias variables autorizadas sin completar plazos ni inferir datos ausentes. |
+| 2026-09-21 | Acordado | Sustituye el acuerdo anterior sobre el área: la validación previa al NetCDF exige una única hora de referencia, dominio y tamaño de grilla. El área es un rectángulo continuo en coordenadas geográficas: `-180 <= west < east <= 180` y `-90 <= south < north <= 90`, contenido en el dominio normalizado por WGRIB2. | No se admiten áreas que crucen el antimeridiano; Shapely comprueba su contención antes de iniciar la escritura. |
+| 2026-09-21 | Acordado | Sustituye la unidad vertical diferida: la fase 3 usará la dimensión `lev`, con niveles isobáricos descendentes y unidad `millibars`, igual que la referencia. | El inventario de fase 2 ya entrega los niveles y su índice para crear el eje vertical. |
+| 2026-09-21 | Acordado | WGRIB2 normaliza los límites del dominio a `-180..180`, mientras PyGRIB puede entregar longitudes nativas en `0..360`. | Antes del subset, la fase 3 normalizará y reordenará conjuntamente longitudes, coordenadas y columnas de datos a `-180..180`. |
+| 2026-09-22 | Acordado | El área de usuario será siempre un rectángulo continuo en `-180..180` y `-90..90`, con `west < east` y `south < north`; no se admiten áreas que crucen el antimeridiano. | La fase 2 valida el bbox y su contención con Shapely. La fase 3 sólo normaliza y reordena grillas PyGRIB nativas en `0..360` antes de calcular sus índices. |
+| 2026-09-22 | Acordado | Sustituye las columnas compactas previas: el inventario conserva `short_name` con la definición NCEP y `var_name` con la agrupación g2ctl. Los remapeos reemplazan `short_name` dentro de `var_name`; no existe `netcdf_suffix` ni una columna separada de nombre NetCDF. | La fase 2 conserva `var_name` como identificador final tanto por mensaje como en `netcdf_variables`. |
+| 2026-09-22 | Acordado | `area` usa el orden de bbox `(west, south, east, north)`, igual que `shapely.box`. | La validación construye primero el bbox del área, después el dominio WGRIB2 y finalmente comprueba su contención. |
+| 2026-09-22 | Implementado | Sustituye la validación de disponibilidad temporal: el usuario es responsable de entregar los GRIB sin plazos faltantes. El conversor conserva todos los tiempos válidos únicos que entregue WGRIB2, sin comprobar cadencia, rango ni intervalos. | Se retiró `forecast_availability` del YAML y de `src/standardize/grib2_to_netcdf.py`; el eje `time` se construye directamente desde `valid_time`. |
+| 2026-09-22 | Verificada | Se verificó la fase 2 en el contenedor Docker `dev`, con el entorno `metvis3d`: un inventario en memoria con tiempos irregulares conserva su eje temporal y consolida variables; el remapeo ECMWF `0-6-192` genera `tcdcclm`, unidad `%` y factor 100. | La consolidación de variables, los ejes de tiempo y presión, los remapeos y la responsabilidad temporal del usuario cumplen el criterio de cierre de la fase 2. |
 
 ## Protocolo entre conversaciones
 
@@ -106,13 +119,17 @@ hacerse luego de indicacion explicita
 - La asociación entre una fila de inventario y un mensaje PyGRIB es el orden de
   las filas dentro del mismo archivo. No se almacena una posición explícita ni
   se realizará una pasada PyGRIB adicional para contar o validar encabezados.
-- El tiempo válido se toma de WGRIB2 con `-VT` y se conserva tal como llega,
-  sin exigir frecuencia regular ni completar plazos ausentes.
+- El tiempo válido se toma de WGRIB2 con `-VT`. El eje `time` conserva todos
+  los tiempos válidos únicos recibidos, sin exigir cadencia, rango ni intervalos.
+  El usuario entrega una lista de GRIB sin plazos faltantes para su uso.
 - Los niveles de presión se conservan en su orden nativo descendente, siguiendo
   la lógica de `grib2_to_netcdf.py`: un nivel textual `500mb` forma parte de un
-  perfil de presión y se agrupa con los demás niveles de la misma variable.
-- El recorte geográfico se hace por índices de la malla original. No implica
-  interpolación ni alteración de los valores.
+  perfil de presión y se agrupa con los demás niveles de la misma variable. El
+  NetCDF usará el eje `lev` con unidades `millibars`.
+- El área de recorte es un rectángulo continuo en `-180..180` y `-90..90`; no
+  puede cruzar el antimeridiano. WGRIB2 valida su contención y, antes del
+  recorte, PyGRIB normaliza y reordena la malla fuente junto con los valores.
+  El recorte no implica interpolación ni alteración de los valores.
 - Las únicas transformaciones de valores autorizadas son las declaradas en
   YAML mediante `factor` y `offset`.
 - Los errores se informan con el modelo, corrida, archivo y mensaje afectados,
@@ -162,7 +179,7 @@ converter = Grib2ToNetCDF(
     model=model,
     center=center,
     configuration_yml="config/grib2-definitions.yaml",
-    area=(west, east, south, north),  # opcional
+    area=(west, south, east, north),  # opcional
 )
 converter.run_conversion(output_dir)
 ```
@@ -187,18 +204,12 @@ local_definitions_reserved:
 
 remappings:
   ecmwf:
-    - match:
-        discipline: 0
-        category: 6
-        parameter: 192
+    "0-6-192":
       output:
         name: TCDC
         units: "%"
         factor: 100
-    - match:
-        discipline: 0
-        category: 1
-        parameter: 193
+    "0-1-193":
       output:
         name: APCP
         units: mm
@@ -206,17 +217,15 @@ remappings:
 
 `local_definitions_reserved` clasifica códigos; no atribuye por sí solo
 significado meteorológico ni cambia un nombre. `remappings` contiene las
-equivalencias científicas aprobadas para un centro. La coincidencia inicial es
-por disciplina, categoría y parámetro; `name` y `units` son obligatorios, y
-`factor` y `offset` toman 1 y 0 por defecto. Si una fuente futura tiene
-variantes de nivel o procesamiento temporal para la misma terna, esos
-criterios se añadirán a `match` antes de convertirla.
+equivalencias científicas aprobadas para un centro no NCEP. Su clave es la
+firma `disciplina-categoría-parámetro`; `name` y `units` son obligatorios, y
+`factor` y `offset` toman 1 y 0 por defecto.
 
 ### Decisiones que deben cerrarse en esta fase
 
 Las decisiones 1, 2 y 4 se aprobaron el 2026-09-21 y constan en el registro
-acumulativo. La unidad final de `pressure` se difiere a la fase 3, cuando se
-implemente e inspeccione la inicialización NetCDF; no bloquea este contrato.
+acumulativo. La fase 3 implementará el eje vertical acordado `lev`, con
+unidades `millibars`; no bloquea este contrato.
 
 ### Criterio de cierre
 
@@ -239,16 +248,21 @@ información necesaria para planificar el NetCDF sin decodificar matrices.
   ```
 
 - El inventario conserva, por cada mensaje y en el orden del archivo:
-  `grib_file`, `var_name`, disciplina, categoría, parámetro, nivel textual,
-  proceso estadístico, tiempo válido, tiempo de referencia, dominio, `nx`,
-  `ny`, descripción y unidades cuando WGRIB2 las entrega.
+  `grib_file`, `short_name`, `parameter_signature`, `var_name`, nivel textual,
+  tiempo válido, tiempo de referencia, dominio, `nx`, `ny`, descripción y
+  unidades cuando WGRIB2 las entrega. `short_name` conserva la definición NCEP
+  entregada por WGRIB2; `var_name` aplica desde el inventario la agrupación
+  g2ctl por presión, nivel y promedio, y podrá recibir un remapeo explícito en
+  la fase 2.
 - La salida se interpreta directamente como ocho segmentos separados por `:`:
   mensaje, byte, fecha de corrida, tiempo válido, dominio, nivel, tamaño de
   grilla y `ctl_inv`. La definición vertical interna de `ctl_inv` no se
-  conserva; sus tres primeros códigos de parámetro son disciplina, categoría y
-  parámetro, y un cuarto código local se ignora.
+  conserva; sus tres primeros códigos forman `parameter_signature` y un cuarto
+  código local se ignora. El proceso estadístico se incorpora a `var_name`
+  cuando forma parte de la convención g2ctl/NCEP.
 - `domain`, `nx` y `ny` registran extensión y tamaño de la malla. La
-  comprobación de su compatibilidad para crear el NetCDF se define en la fase 3.
+  fase 2 comprueba que sean únicos dentro de la corrida antes de crear el
+  NetCDF.
 - El inventario no filtra mensajes y no lee sus matrices de datos.
 
 ### Métodos previstos
@@ -273,52 +287,64 @@ PyGRIB.
 
 ### Reglas de nombres
 
-1. El nombre NCEP obtenido de WGRIB2 es el nombre base inicial.
-2. Si la terna está en un rango local para el `source.centre`, se consulta
-   `remappings`.
+1. `short_name` conserva el nombre NCEP obtenido de WGRIB2 y `var_name` aplica
+   su agrupación g2ctl por presión, nivel y promedio.
+2. Si la firma está en un rango local, se consulta el `remappings` del centro
+   productor actual; para NCEP no se lee ningún remapeo.
 3. Una regla encontrada reemplaza el nombre base por `output.name` y
    registra `units`, `factor` y `offset` para la escritura.
 4. Sin regla, no se infiere equivalencia ni conversión. Se emite una
-   advertencia con la firma disponible y se conserva el nombre WGRIB2.
-5. Después se aplica el sufijo del nivel: presión agrupa como `nombreprs`; los
-   otros niveles conservan la convención de la referencia, como `tmp2m` o
-   `ugrd10m`.
+   advertencia con la firma disponible y se conserva la definición NCEP.
+5. El remapeo reemplaza `short_name` dentro de `var_name`: presión agrupa como
+   `nombreprs`; los otros niveles conservan la convención de la referencia,
+   como `tmp2m` o `ugrd10m`.
 6. Los identificadores NetCDF se normalizan en minúsculas, por ejemplo
    `TCDC` termina como `tcdcsfc` o `tcdcprs` según su nivel.
 
 La regla ECMWF `0-6-192 -> TCDC` se aplica antes de formar el nombre con el
 sufijo de nivel; el remapeo no sustituye ni modifica el nivel del mensaje.
 
+`wgrib2_inventory` conserva `var_name` por mensaje. La tabla
+`netcdf_variables` registra una sola vez por `var_name` la variable final,
+condición isobárica, unidades, factor, offset y si recibió remapeo.
+
 ### Presión y tiempo
 
 - `_match_pressure_level()` reconocerá inicialmente niveles con formato
   `numero + mb`, igual que la referencia.
 - Los niveles encontrados se ordenan de mayor a menor y forman un único eje
-  vertical por corrida.
+  `lev` por corrida; su unidad NetCDF será `millibars` en la fase 3.
 - Los tiempos válidos extraídos con `-VT` se ordenan y forman el eje `time`.
-  No se valida intervalo constante.
+  Se conservan sin validación de cadencia, rango o intervalos; el usuario es
+  responsable de proporcionar la secuencia temporal completa que requiera.
 
-### Caso que debe precisarse
+### Validación de corrida y área
 
-Dos mensajes pueden acabar con la misma variable, tiempo y nivel final. Este
-caso debe definirse antes de escribir: en particular, los acumulados duplicados
-de APCP de GFS no pueden resolverse escogiendo un mensaje por posición ni
-sobrescribiendo silenciosamente un valor. Se documentará la lógica WGRIB2
-aplicable, incluido `-unmerge_fcst` si corresponde, y su representación en el
-plan de variables.
+- Todos los mensajes deben tener una única hora de referencia, dominio y
+  tamaño de grilla.
+- Si se proporciona `area=(west, south, east, north)`, debe cumplir
+  `-180 <= west < east <= 180` y `-90 <= south < north <= 90`.
+- WGRIB2 entrega el dominio normalizado a `-180..180`; Shapely comprueba que
+  el rectángulo solicitado esté íntegramente contenido en él.
+- Las áreas que cruzan el antimeridiano no están definidas en este conversor.
+
+FV3-GFS puede repetir mensajes APCP acumulados. Comparten el mismo destino
+NetCDF y la variable se define una sola vez, como en la referencia; la fase 2
+no lee ni selecciona sus matrices.
 
 ### Métodos previstos
 
-- `_build_variable_plan()`
-- `_get_parameter_status(inventory_row)`
-- `_apply_local_remapping(inventory_row)`
-- `_build_final_variable_name(inventory_row)`
-- `_build_time_and_pressure_axes()`
+- `_read_grib2_configurations()`
+- `_validate_inventory()`
+- `_match_pressure_level()`
+- `_build_coordinates()`
+- `_build_netcdf_variables()`
 
 ### Criterio de cierre
 
-Para muestras GFS y ECMWF, el plan muestra por cada mensaje su nombre WGRIB2,
-remapeo opcional, nombre NetCDF final, tiempo, nivel y conversión declarada.
+Los inventarios completos GFS y ECMWF muestran por mensaje su definición NCEP,
+nombre NetCDF final, tiempo y nivel; `netcdf_variables` registra los remapeos y
+conversiones declarados. No se leen matrices ni se crea un NetCDF.
 
 ## Fase 3 — Estructura NetCDF y subset geográfico
 
@@ -329,25 +355,27 @@ una lectura PyGRIB previa de los archivos.
 
 ### Reglas
 
-- Las dimensiones canónicas son `time`, `pressure`, `latitude` y
-  `longitude`.
+- Las dimensiones canónicas son `time`, `lev`, `latitude` y `longitude`.
 - Las variables de superficie usan `(time, latitude, longitude)` y las de
-  presión `(time, pressure, latitude, longitude)`.
-- Se crean primero el archivo, los ejes de tiempo y presión conocidos por el
-  inventario y los atributos globales.
+  presión `(time, lev, latitude, longitude)`.
+- Se crean primero el archivo, los ejes de tiempo y `lev` conocidos por el
+  inventario y los atributos globales. El eje `lev` conserva niveles
+  isobáricos descendentes y usa unidades `millibars`, igual que la referencia.
 - Al recibir el primer mensaje PyGRIB de la fase 4, `latlons()` aporta la
   malla: entonces se calculan los índices de `area`, se crean `latitude` y
   `longitude`, las dimensiones horizontales y las variables del plan.
-- El subset debe conservar el orden y los valores de la malla fuente. La
-  normalización de longitudes a `-180..180`, si se aplica, debe reordenar datos
-  y coordenadas con los mismos índices y nunca interpolar.
+- PyGRIB puede entregar longitudes nativas en `0..360`. Antes del subset se
+  normalizan a `-180..180` y se reordenan con los mismos índices las
+  longitudes, coordenadas y columnas de valores, sin interpolar.
+- El área ya validada en fase 2 es un rectángulo continuo que no cruza el
+  antimeridiano; sus índices se calculan sobre la grilla reordenada.
 - La malla debe ser compatible con coordenadas geográficas rectangulares.
   Una malla no compatible debe informarse y detener la corrida hasta definir
   su tratamiento.
 
 ### Métodos previstos
 
-- `_initialize_netcdf_time_and_pressure(output_path)`
+- `_initialize_netcdf_time_and_lev(output_path)`
 - `_initialize_netcdf_grid(first_grib_message)`
 - `_prepare_area_subset(latitude, longitude)`
 - `_create_netcdf_variables()`
@@ -375,8 +403,8 @@ explícitas y escribirlos en el NetCDF final.
 - Cada matriz se recorta mediante los índices geográficos definidos.
 - Si la fila tiene remapeo, se calcula `values * factor + offset`; no se
   evalúan fórmulas arbitrarias.
-- La matriz final se escribe en su índice de tiempo y, para presión, en su
-  índice vertical.
+- La matriz final se escribe en su índice de tiempo y, para niveles
+  isobáricos, en su índice vertical.
 - Cualquier error de lectura, índice, malla, conversión o escritura se informa
   con el contexto meteorológico y detiene la corrida.
 
@@ -404,10 +432,11 @@ pasen a ser contractuales.
 1. GFS: nombres WGRIB2 NCEP sin remapeos y perfiles de presión.
 2. ECMWF: `0-6-192` convertido a `TCDC` y de fracción a porcentaje.
 3. Área parcial: índices y valores idénticos al subconjunto de la fuente.
-4. Tiempos irregulares o plazos ausentes: eje `time` conservado sin relleno.
+4. Secuencia temporal entregada por el usuario: eje `time` conservado sin
+   relleno ni validación de cadencia.
 5. Código local sin regla: advertencia explícita y comportamiento acordado.
-6. Colisión de mensajes en una misma celda lógica NetCDF: tratamiento aprobado
-   antes de aceptar la corrida como válida.
+6. APCP duplicado de FV3-GFS: una única variable NetCDF con la convención de
+   la referencia.
 
 ### Entregables
 
@@ -416,6 +445,6 @@ pasen a ser contractuales.
 
 ## Orden de implementación
 
-La próxima conversación debe comenzar por la fase 2. No se implementará una
+La próxima conversación debe comenzar por la fase 3. No se implementará una
 fase posterior mientras sus decisiones pendientes no estén definidas y su
 criterio de cierre no pueda verificarse.
