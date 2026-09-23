@@ -23,8 +23,11 @@ remappings:
       output:
         name: TCDC
         units: "%"
+        long_name: "Total cloud cover"
         factor: 100
     "0-1-193":
       output:
         name: APCP
         units: mm
+        long_name: "Total precipitation"
+        factor: 1000

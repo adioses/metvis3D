@@ -34,6 +34,7 @@ class Grib2ToNetCDF:
         configuration_yml: Configuración única del conversor, contiene los remapeos
         area: Área opcional `(west, south, east, north)` para el recorte geográfico.
         longitude_convention: Rango longitudinal del NetCDF final: `0_360` o `-180_180`.
+        variables: Nombres finales exactos de las variables a convertir.
     """
 
     _DESCRIPTION_WITH_UNITS = re.compile(
@@ -55,6 +56,7 @@ class Grib2ToNetCDF:
         configuration_yml: str | Path = "config/grib2-definitions.yaml",
         area: tuple[float, float, float, float] | None = None,
         longitude_convention: str = "0_360",
+        variables: Sequence[str] | None = None,
     ) -> None:
         if not grib_files:
             raise ValueError("Se requiere al menos un archivo GRIB2 para conversión.")
@@ -71,8 +73,10 @@ class Grib2ToNetCDF:
         self.configuration_yml = Path(configuration_yml)
         self.area = area
         self.longitude_convention = longitude_convention
+        self.variables = None if variables is None else tuple(variables)
         self.wgrib2_inventory: pd.DataFrame | None = None
         self.netcdf_variables: pd.DataFrame | None = None
+        self.selected_variables: set[str] = set()
         self.time_list: list[datetime] = []
         self.time_map: dict[datetime, int] = {}
         self.pressure_levels: list[int] = []
@@ -312,7 +316,9 @@ class Grib2ToNetCDF:
         self.pressure_levels = sorted(
             {
                 int(match.group(1))
-                for level in self.wgrib2_inventory["level"]
+                for level in self.wgrib2_inventory.loc[
+                    self.wgrib2_inventory["var_name"].isin(self.selected_variables), "level"
+                ]
                 if (match := self._match_pressure_level(level))
             },
             reverse=True,
@@ -345,7 +351,8 @@ class Grib2ToNetCDF:
 
         # Dimensiones espaciales, vertical y temporal del producto final.
         dataset.createDimension("time", None)
-        dataset.createDimension("lev", len(self.pressure_levels))
+        if self.pressure_levels:
+            dataset.createDimension("lev", len(self.pressure_levels))
         dataset.createDimension("latitude", len(latitude))
         dataset.createDimension("longitude", len(longitude))
 
@@ -353,10 +360,11 @@ class Grib2ToNetCDF:
         time_coordinate = dataset.createVariable("time", "f8", ("time",))
         time_coordinate.units = "hours since 1800-01-01 00:00:00"
 
-        # Coordenada vertical isobárica.
-        lev_coordinate = dataset.createVariable("lev", "i2", ("lev",))
-        lev_coordinate.units = "millibars"
-        lev_coordinate[:] = self.pressure_levels
+        # Coordenada vertical isobárica, si existen variables 4D.
+        if self.pressure_levels:
+            lev_coordinate = dataset.createVariable("lev", "i2", ("lev",))
+            lev_coordinate.units = "millibars"
+            lev_coordinate[:] = self.pressure_levels
 
         # Coordenada latitudinal.
         latitude_coordinate = dataset.createVariable("latitude", "f4", ("latitude",))
@@ -375,6 +383,13 @@ class Grib2ToNetCDF:
 
             if variable.output_units is not None:
                 netcdf_variable.units = variable.output_units
+            netcdf_variable.long_name = variable.long_name
+            netcdf_variable.parameter_signature = variable.parameter_signature
+            netcdf_variable.wgrib2_short_name = variable.short_name
+            if variable.remapping_applied:
+                netcdf_variable.remapping_applied = "true"
+                netcdf_variable.remapping_factor = variable.factor
+                netcdf_variable.remapping_offset = variable.offset
         return dataset
 
     def _prepare_netcdf_grid(self, grib_file: Path) -> tuple[np.ndarray, np.ndarray]:
@@ -458,6 +473,8 @@ class Grib2ToNetCDF:
             with pygrib.open(str(grib_file)) as source_grib:
                 for message_index, grib_message in enumerate(source_grib):
                     inventory_row = file_inventory.iloc[message_index]
+                    if inventory_row.var_name not in self.selected_variables:
+                        continue
                     self._write_message(dataset, inventory_row, grib_message)
 
     def _write_message(self, dataset: Dataset, inventory_row: pd.Series, grib_message) -> None:
@@ -498,12 +515,11 @@ class Grib2ToNetCDF:
         meteorológica.
         """
 
-        # Definiciones meteorológicas y coordenadas de la corrida.
+        # Definiciones meteorológicas y validación de la corrida.
         local_definitions, center_remappings = (
             self._read_grib2_configurations()
         )
         self._validate_inventory()
-        self._build_coordinates()
 
         # Los remapeos sustituyen el nombre NCEP y conservan nivel y proceso estadístico.
         variable_rows = []
@@ -531,6 +547,7 @@ class Grib2ToNetCDF:
             output = None if remapping is None else remapping["output"]
             output_name = inventory_row.short_name if output is None else output["name"]
             output_units = inventory_row.units if output is None else output["units"]
+            long_name = inventory_row.description if output is None else output["long_name"]
             factor = 1 if output is None else output.get("factor", 1)
             offset = 0 if output is None else output.get("offset", 0)
             if remapping is not None:
@@ -547,6 +564,9 @@ class Grib2ToNetCDF:
                     "var_name": var_name,
                     "is_pressure": self._match_pressure_level(level) is not None,
                     "output_units": output_units,
+                    "long_name": long_name,
+                    "parameter_signature": signature,
+                    "short_name": inventory_row.short_name,
                     "factor": factor,
                     "offset": offset,
                     "remapping_applied": remapping is not None,
@@ -557,4 +577,24 @@ class Grib2ToNetCDF:
         self.netcdf_variables = pd.DataFrame(variable_rows).drop_duplicates(
             "var_name", ignore_index=True
         )
+
+        # La selección usa los nombres finales, después de los remapeos YAML.
+        if self.variables is not None:
+            available_variables = set(self.netcdf_variables["var_name"])
+            for variable_name in self.variables:
+                if variable_name not in available_variables:
+                    logger.warning(
+                        "La variable final solicitada %s no está disponible en los archivos GRIB2.",
+                        variable_name,
+                    )
+            self.netcdf_variables = self.netcdf_variables.loc[
+                self.netcdf_variables["var_name"].isin(self.variables)
+            ].reset_index(drop=True)
+            if self.netcdf_variables.empty:
+                raise RuntimeError(
+                    f"El filtro de variables no contiene variables disponibles para el modelo {self.model}."
+                )
+
+        self.selected_variables = set(self.netcdf_variables["var_name"])
+        self._build_coordinates()
         return self.netcdf_variables

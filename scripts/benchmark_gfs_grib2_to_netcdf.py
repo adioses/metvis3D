@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import pygrib
+import yaml
 
 from standardize.grib2_to_netcdf import Grib2ToNetCDF
 
@@ -77,6 +78,8 @@ class TimedGrib2ToNetCDF(Grib2ToNetCDF):
             with pygrib.open(str(grib_file)) as source_grib:
                 for message_index, grib_message in enumerate(source_grib):
                     inventory_row = file_inventory.iloc[message_index]
+                    if inventory_row.var_name not in self.selected_variables:
+                        continue
                     self._write_message(dataset, inventory_row, grib_message)
 
             elapsed_seconds = time.perf_counter() - started_at
@@ -126,6 +129,11 @@ def parse_arguments() -> argparse.Namespace:
         type=int,
         help="Cantidad inicial de archivos para una muestra controlada.",
     )
+    parser.add_argument(
+        "--variables-yml",
+        type=Path,
+        help="YAML con la lista selected_variables para el NetCDF.",
+    )
     return parser.parse_args()
 
 
@@ -141,6 +149,10 @@ def main() -> None:
 
     model = arguments.model.lower()
     center = arguments.center.lower()
+    variables = None
+    if arguments.variables_yml is not None:
+        with arguments.variables_yml.open(encoding="utf-8") as configuration_file:
+            variables = yaml.safe_load(configuration_file)["selected_variables"]
     arguments.output_dir.mkdir(parents=True, exist_ok=True)
     benchmark_log = arguments.output_dir / f"{center}-{model}_benchmark.log"
     if benchmark_log.exists():
@@ -153,6 +165,7 @@ def main() -> None:
         log_file.write(f"Archivos: {len(grib_files)}\n")
         log_file.write("Área: (-130.0, -57.0, -10.0, 30.0)\n")
         log_file.write("Convención longitudinal: 0_360\n")
+        log_file.write(f"Variables: {'todas' if variables is None else ', '.join(variables)}\n")
         log_file.write("Cuantización: least_significant_digit=2\n")
 
     converter = TimedGrib2ToNetCDF(
@@ -161,6 +174,7 @@ def main() -> None:
         center=center,
         area=(-130.0, -57.0, -10.0, 30.0),
         longitude_convention="0_360",
+        variables=variables,
         benchmark_log=benchmark_log,
     )
     netcdf_output = converter.run_conversion(arguments.output_dir)

@@ -27,7 +27,9 @@ registra el contrato y las verificaciones; el código operativo reside en
 **Fase activa:** 5. Verificación científica y operación.
 **Estado global:** las fases de contrato, inventario WGRIB2, consolidación de
 variables, estructura NetCDF y escritura de matrices están verificadas. La
-verificación científica de los campos convertidos continúa en la fase 5.
+selección de variables finales y sus atributos de procedencia forman parte de
+la fase 4 verificada. La verificación científica de los campos convertidos
+continúa en la fase 5.
 
 | Fase | Estado | Resultado verificable | Próximo paso |
 |---|---|---|---|
@@ -35,7 +37,7 @@ verificación científica de los campos convertidos continúa en la fase 5.
 | 1. Inventario WGRIB2 | Verificada | Inventario completo de GFS y ECMWF, en orden por archivo | Consolidar variables, tiempos y niveles. |
 | 2. Plan de variables y nombres | Verificada | Nombres finales, remapeos, tiempos y niveles de GFS y ECMWF | Crear la estructura NetCDF y preparar el subset. |
 | 3. NetCDF y subset | Verificada | Estructura, coordenadas e índices de recorte verificables | Leer matrices y escribir el NetCDF final. |
-| 4. Escritura con PyGRIB | Verificada | Una pasada PyGRIB por archivo y un NetCDF completo para GFS y ECMWF | Iniciar la verificación científica de los campos escritos. |
+| 4. Escritura con PyGRIB | Verificada | Una pasada PyGRIB por archivo, selección final y atributos NetCDF para GFS y ECMWF | Iniciar la verificación científica de los campos escritos. |
 | 5. Verificación científica | Pendiente | Casos GFS y ECMWF documentados | Verificar los campos convertidos contra sus fuentes GRIB2. |
 
 Estados permitidos: `Pendiente`, `En definición`, `En implementación`,
@@ -90,6 +92,13 @@ este documento.
 | 2026-09-23 | Acordado | El benchmark GFS usa los archivos que coinciden con `data/raw/GFS27/gfs*.fNNN` y escribe exclusivamente en `data/standardized/benchmark/`, sin sufijo de fecha. Por defecto toma los 129 archivos, mientras `--file-count` permite una muestra inicial controlada. Su `ncep-gfs_benchmark.log` registra una línea `INVENTORY` y una `CONVERT` por archivo, con duración, acumulado, promedio, ETA y número de mensajes. | El producto previo se elimina manualmente antes de una nueva corrida; el archivo final conserva el nombre normal del conversor dentro de la carpeta de benchmark. El log permite seguir y comparar la ejecución con la referencia. |
 | 2026-09-23 | Verificada | La fase 4 se implementó en `src/standardize/grib2_to_netcdf.py`. `_write_grib_messages()` escribe primero la coordenada `time` de dimensión ilimitada y recorre una vez los mensajes de cada archivo; `_write_message()` selecciona y reordena cada matriz con los índices de fase 3, aplica sólo `factor + offset` cuando existe remapeo y la escribe según su estructura 3D o 4D. | La dimensión temporal no hace crecer los chunks con la duración completa de la corrida. El NetCDF se cierra aun si la conversión falla y queda disponible para análisis. |
 | 2026-09-23 | Verificada | Amplía el benchmark inicialmente definido para GFS: admite cualquier combinación de centro y modelo mediante sus argumentos de entrada y nombra el log como `<center>-<model>_benchmark.log`. Las corridas completas produjeron `ncep-gfs_20260903_00Z.nc` desde 129 archivos GFS en 39.90 min, y `ecmwf-ecmwf_20260903_00Z.nc` desde 65 archivos ECMWF globales en 7.15 min. | Los NetCDF y sus logs quedaron en `data/standardized/benchmark/` como evidencia operativa reproducible. La comprobación científica de los valores se realizará en la fase 5. |
+| 2026-09-23 | Implementado | El constructor admite opcionalmente una secuencia de nombres finales exactos de variables. El inventario WGRIB2 y el eje `time` permanecen completos; tras resolver los remapeos YAML se filtra el plan NetCDF, PyGRIB recorre todos los mensajes por posición y sólo decodifica/escribe matrices seleccionadas. | Los parámetros locales ECMWF se remapean para formar variables meteorológicas estandarizadas finales; la selección usa exclusivamente esos nombres, no códigos locales ni nombres intermedios. Cada nombre solicitado ausente genera una advertencia y sólo se detiene si el filtro no conserva ninguna variable. Si no quedan campos isobáricos se omiten `lev` y su coordenada. |
+| 2026-09-23 | Implementado | Cada variable NetCDF conserva `long_name`, `parameter_signature` y `wgrib2_short_name`. Los remapeos añaden `remapping_applied`, `remapping_factor` y `remapping_offset`; su `long_name` procede de `output.long_name` en YAML. | Las descripciones de `TCDC` y `APCP` se declaran temporalmente en YAML y deberán actualizarse cuando se apruebe su nomenclatura final. Las variables sin remapeo usan la descripción extraída de WGRIB2 como `long_name`. |
+| 2026-09-23 | Implementado | El benchmark acepta opcionalmente `--variables-yml`, carga `selected_variables` y las entrega al conversor. Su lectura temporizada conserva el conteo completo de mensajes por archivo y omite las matrices no seleccionadas antes de acceder a `values`. | El tiempo de inventario y el número de mensajes informados permanecen comparables con el benchmark completo; el tiempo `CONVERT` mide la reducción de decodificación, subset y escritura de la selección. |
+| 2026-09-23 | Verificada | La muestra ECMWF de cinco archivos (`f000`–`f012`), con área `(-130, -57, -10, 30)`, convención `0_360` y `config/models/ecmwf.yaml`, inventarió 873 mensajes y creó un NetCDF de 52 MiB en 0.19 min. `INVENTORY` tomó 0.06 min y `CONVERT` 0.08 min. | La salida contiene nueve variables meteorológicas seleccionadas; `prmslmsl` emitió la advertencia acordada. Se verificaron `long_name`, `parameter_signature` y `wgrib2_short_name` en `tmp2m`, y los atributos de remapeo en `apcpsfc`. La evidencia queda en `data/standardized/benchmark/ecmwf_selection_test/`. |
+| 2026-09-23 | Verificada | El benchmark ECMWF completo de 65 archivos, con la misma área, convención y selección YAML, inventarió 11,313 mensajes y creó `ecmwf-ifs_20260903_00Z.nc` de 654 MiB en 5.51 min. `INVENTORY` tomó 2.31 min y `CONVERT` 3.02 min. | El NetCDF contiene nueve variables meteorológicas: `apcpsfc`, `tmp2m`, `tmpprs`, `hgtprs`, `ugrd10m`, `ugrdprs`, `vgrd10m`, `vgrdprs` y `rhprs`. Se confirmaron los atributos de procedencia de `tmp2m` y los atributos de remapeo de `apcpsfc`; `prmslmsl` conservó la advertencia acordada. La evidencia queda en `data/standardized/benchmark/ecmwf_selection_full/`. |
+| 2026-09-23 | Verificada | El benchmark GFS completo de 129 archivos, con `config/models/gfs.yaml`, área `(-130, -57, -10, 30)` y convención `0_360`, creó un NetCDF seleccionado de 3.60 GiB en 29.68 min. `INVENTORY` tomó 1.51 min y `CONVERT` 27.97 min. | Frente al benchmark GFS completo previo de 5.01 GiB y 39.90 min, la selección redujo 28.2% el tamaño, 25.6% el tiempo total y 24.7% la etapa `CONVERT`; el inventario WGRIB2 sigue completo. La evidencia queda en `data/standardized/benchmark/gfs_selection_full/`. |
+| 2026-09-23 | Acordado | La selección de variables finales y los atributos de procedencia se integran como ampliación de la fase 4; no constituyen una fase independiente. | La fase 4 queda verificada con las corridas completas GFS y ECMWF. |
 
 ## Protocolo entre conversaciones
 
@@ -121,8 +130,9 @@ hacerse luego de indicacion explicita
 - Una corrida produce un solo NetCDF final por modelo.
 - WGRIB2 se ejecuta con `-names ncep`, sin depender de su configuración de
   compilación.
-- El inventario contiene todos los mensajes; no hay una selección de
-  variables previa a la conversión.
+- El inventario contiene todos los mensajes. La selección opcional usa nombres
+  NetCDF finales después de resolver los remapeos YAML y antes de crear el
+  NetCDF.
 - El nombre inicial de un campo proviene de WGRIB2. Sólo una regla YAML
   explícita puede reemplazarlo para un parámetro local de un centro no NCEP.
 - La fase 3 abre sólo el primer GRIB para obtener `latlons()` de su primer
@@ -154,13 +164,16 @@ hacerse luego de indicacion explicita
 ## Flujo objetivo
 
 ```text
-archivos GRIB2 + YAML + área opcional
+archivos GRIB2 + YAML + área + variables finales opcionales
                  |
                  v
          inventario completo WGRIB2
                  |
                  v
   plan de nombres, presión, tiempo y remapeos YAML
+                 |
+                 v
+       selección opcional de variables finales
                  |
                  v
        apertura directa del NetCDF final
@@ -202,15 +215,19 @@ converter = Grib2ToNetCDF(
     configuration_yml="config/grib2-definitions.yaml",
     area=(west, south, east, north),  # opcional
     longitude_convention="0_360",  # opcional
+    variables=["tmp2m", "apcpsfc"],  # opcional
 )
 converter.run_conversion(output_dir)
 ```
 
-No se recibe una lista de variables: todos los mensajes inventariados se
-procesan. `configuration_yml` usa por defecto
-`config/grib2-definitions.yaml`. La lista no puede estar vacía y se ordena de
-forma ascendente antes del inventario. `area` limita únicamente la extensión
-geográfica de los valores escritos.
+`variables` recibe nombres finales exactos y es opcional: con `None` se
+procesan todas las variables. La selección no altera el inventario WGRIB2 ni
+el eje `time`; sólo limita las variables NetCDF y las matrices PyGRIB escritas.
+El usuario es responsable de indicar los nombres finales correctos, como
+`tmp2m` o `apcpsfc`, no nombres base ni códigos locales. `configuration_yml`
+usa por defecto `config/grib2-definitions.yaml`; la lista de GRIB no puede
+estar vacía y se ordena de forma ascendente antes del inventario. `area` limita
+únicamente la extensión geográfica de los valores escritos.
 
 ### YAML inicial
 
@@ -230,18 +247,20 @@ remappings:
       output:
         name: TCDC
         units: "%"
+        long_name: "Total cloud cover"
         factor: 100
     "0-1-193":
       output:
         name: APCP
         units: mm
+        long_name: "Total precipitation"
 ```
 
 `local_definitions_reserved` clasifica códigos; no atribuye por sí solo
 significado meteorológico ni cambia un nombre. `remappings` contiene las
 equivalencias científicas aprobadas para un centro no NCEP. Su clave es la
-firma `disciplina-categoría-parámetro`; `name` y `units` son obligatorios, y
-`factor` y `offset` toman 1 y 0 por defecto.
+firma `disciplina-categoría-parámetro`; `name`, `units` y `long_name` son
+obligatorios, y `factor` y `offset` toman 1 y 0 por defecto.
 
 ### Decisiones que deben cerrarse en esta fase
 
@@ -314,7 +333,7 @@ PyGRIB.
 2. Si la firma está en un rango local, se consulta el `remappings` del centro
    productor actual; para NCEP no se lee ningún remapeo.
 3. Una regla encontrada reemplaza el nombre base por `output.name` y
-   registra `units`, `factor` y `offset` para la escritura.
+   registra `units`, `long_name`, `factor` y `offset` para la escritura.
 4. Sin regla, no se infiere equivalencia ni conversión. Se emite una
    advertencia con la firma disponible y se conserva la definición NCEP.
 5. El remapeo reemplaza `short_name` dentro de `var_name`: presión agrupa como
@@ -328,14 +347,23 @@ sufijo de nivel; el remapeo no sustituye ni modifica el nivel del mensaje.
 
 `wgrib2_inventory` conserva `var_name` por mensaje. La tabla
 `netcdf_variables` registra una sola vez por `var_name` la variable final,
-condición isobárica, unidades, factor, offset y si recibió remapeo.
+condición isobárica, unidades, atributos de procedencia, factor, offset y si
+recibió remapeo.
+
+Después de construir los nombres finales se aplica la selección opcional. Un
+nombre solicitado que no esté en `netcdf_variables` genera una advertencia; el
+proceso sólo se detiene si el filtro no conserva ninguna variable. Los
+remapeos representan parámetros locales de centros como ECMWF que no entregan
+el campo con la codificación meteorológica estandarizada: forman la variable
+final común antes de que pueda ser seleccionada.
 
 ### Presión y tiempo
 
 - `_match_pressure_level()` reconocerá inicialmente niveles con formato
   `numero + mb`, igual que la referencia.
-- Los niveles encontrados se ordenan de mayor a menor y forman un único eje
-  `lev` por corrida; su unidad NetCDF será `millibars` en la fase 3.
+- Los niveles de las variables seleccionadas se ordenan de mayor a menor y
+  forman el eje `lev`; su unidad NetCDF será `millibars`. Si no se seleccionan
+  campos isobáricos, no se crea la dimensión ni la coordenada `lev`.
 - Los tiempos válidos extraídos con `-VT` se ordenan y forman el eje `time`.
   Se conservan sin validación de cadencia, rango o intervalos; el usuario es
   responsable de proporcionar la secuencia temporal completa que requiera.
@@ -377,13 +405,15 @@ geográficos que la fase 4 aplicará a las matrices.
 
 ### Reglas
 
-- Las dimensiones canónicas son `time`, `lev`, `latitude` y `longitude`.
+- Las dimensiones canónicas son `time`, `latitude` y `longitude`, junto con
+  `lev` cuando la selección contiene variables isobáricas.
 - Las variables de superficie usan `(time, latitude, longitude)` y las de
   presión `(time, lev, latitude, longitude)`.
-- Se crean primero el archivo, los ejes de tiempo y `lev` conocidos por el
-  inventario y los atributos globales. La dimensión `time` es ilimitada y su
-  coordenada se escribe antes de las matrices. El eje `lev` conserva niveles
-  isobáricos descendentes y usa unidades `millibars`, igual que la referencia.
+- Se crean primero el archivo, el eje `time` del inventario completo, el eje
+  `lev` de las variables seleccionadas cuando exista y los atributos globales.
+  La dimensión `time` es ilimitada y su coordenada se escribe antes de las
+  matrices. El eje `lev` conserva niveles isobáricos descendentes y usa
+  unidades `millibars`, igual que la referencia.
 - La fase 3 abre sólo el primer GRIB y obtiene `latlons()` de su primer
   mensaje. No lee matrices meteorológicas. Con esas coordenadas crea
   `latitude`, `longitude`, las dimensiones horizontales y las variables del
@@ -426,6 +456,13 @@ explícitas y escribirlos en el NetCDF final.
   orden.
 - El índice de iteración recupera la fila de inventario del mismo archivo; no
   hay una pasada previa para encabezados ni conteos.
+- El constructor admite `variables` con nombres NetCDF finales exactos. La
+  selección se resuelve después de los remapeos YAML y antes de crear el
+  NetCDF; `None` conserva todas las variables. Un nombre ausente advierte y
+  sólo un filtro sin variables disponibles detiene la conversión.
+- Los mensajes sin una variable final seleccionada se omiten antes de acceder
+  a su matriz `values`; su iteración se conserva para mantener la asociación
+  por posición con el inventario completo.
 - La malla, las variables NetCDF y los índices geográficos ya fueron creados
   en la fase 3; no se vuelven a calcular durante la lectura de valores.
 - Cada matriz se recorta y, cuando corresponda, se reordena mediante los
@@ -434,6 +471,10 @@ explícitas y escribirlos en el NetCDF final.
   evalúan fórmulas arbitrarias.
 - La matriz final se escribe en su índice de tiempo y, para niveles
   isobáricos, en su índice vertical.
+- Cada variable NetCDF recibe `long_name`, `parameter_signature` y
+  `wgrib2_short_name`. Cuando hay remapeo también recibe
+  `remapping_applied`, `remapping_factor` y `remapping_offset`; los
+  `long_name` de remapeos proceden de `output.long_name` en YAML.
 - Un error de la conversión detiene la corrida. El cierre del NetCDF se ejecuta
   de todos modos para conservar el archivo creado hasta ese punto.
 
@@ -441,13 +482,16 @@ explícitas y escribirlos en el NetCDF final.
 
 - `_write_grib_messages(dataset)`
 - `_write_message(dataset, inventory_row, grib_message)`
+- `_create_netcdf(netcdf_output)`
 
 ### Criterio de cierre
 
 Las corridas completas GFS y ECMWF escriben un único NetCDF final mediante una
 pasada de valores por archivo, conservando el subset y reordenamiento
-preparados en la fase 3. La verificación científica de los valores, incluido
-el factor 100 de la cobertura nubosa ECMWF, corresponde a la fase 5.
+preparados en la fase 3. La selección usa nombres finales, conserva el
+inventario completo, omite matrices no seleccionadas y registra los atributos
+acordados. La verificación científica de los valores, incluido el factor 100
+de la cobertura nubosa ECMWF, corresponde a la fase 5.
 
 ## Fase 5 — Verificación científica y operación
 
@@ -474,6 +518,4 @@ pasen a ser contractuales.
 
 ## Orden de implementación
 
-La próxima conversación debe comenzar por la fase 5. La verificación
-científica se limitará a sus casos mínimos y registrará sus resultados antes
-de decidir cambios al conversor o declarar la fase verificada.
+La verificación científica de la fase 5 continúa con sus casos mínimos.
