@@ -5,6 +5,7 @@ dependencies:
   - python=3.11
   - numpy
   - pandas
+  - matplotlib
   - netcdf4
   - h5netcdf
   - wgrib2

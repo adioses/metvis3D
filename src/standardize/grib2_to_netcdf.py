@@ -1,4 +1,4 @@
-"""Inventario WGRIB2 para la conversión de GRIB2 a NetCDF."""
+"""Conversión de archivos GRIB2 a un único NetCDF."""
 
 import logging
 import re
@@ -19,24 +19,21 @@ logger = logging.getLogger(__name__)
 
 
 class Grib2ToNetCDF:
-    """Construye el inventario WGRIB2 de los mensajes de una corrida GRIB2.
+    """Convierte archivos GRIB2 en un único NetCDF.
 
-    Inventaría todos los mensajes de los archivos ordenados y conserva el orden
-    de cada archivo para asociarlo con la lectura secuencial de PyGRIB durante
-    la escritura futura. No decodifica ni escribe matrices meteorológicas. La
-    consolidación agrupa las variables NetCDF y resuelve sus remapeos YAML. La
-    fase de estructura crea el único NetCDF final y obtiene sólo las
-    coordenadas del primer mensaje PyGRIB.
+    WGRIB2 interpreta los metadatos de los mensajes con nomenclatura NCEP usando
+    wgrib2.PyGRIB lee las coordenadas y las matrices meteorológicas mediante. 
+    El inventario define las variables, coordenadas y posiciones de
+    escritura del NetCDF; las reglas YAML remapean parámetros locales cuando
+    corresponde. Se permite un subset de la información al definir un área.
 
     Args:
-        grib_files: Archivos GRIB2 de una misma corrida meteorológica.
-        model: Identificador del modelo usado para informar errores.
-        center: Centro productor usado por los remapeos de fases posteriores.
-        configuration_yml: Configuración única del conversor.
-        area: Área opcional `(west, south, east, north)` para una fase
-            de recorte geográfico.
-        longitude_convention: Rango longitudinal del NetCDF final:
-            `0_360` o `-180_180`.
+        grib_files: Archivos GRIB2 de una misma corrida de modelo.
+        model: nombre del modelo meteorológico.
+        center: (ECMWF, NCEP) Centro productor usado por los remapeos YAML.
+        configuration_yml: Configuración única del conversor, contiene los remapeos
+        area: Área opcional `(west, south, east, north)` para el recorte geográfico.
+        longitude_convention: Rango longitudinal del NetCDF final: `0_360` o `-180_180`.
     """
 
     _DESCRIPTION_WITH_UNITS = re.compile(
@@ -60,11 +57,11 @@ class Grib2ToNetCDF:
         longitude_convention: str = "0_360",
     ) -> None:
         if not grib_files:
-            raise ValueError("Se requiere al menos un archivo GRIB2 para construir el inventario.")
+            raise ValueError("Se requiere al menos un archivo GRIB2 para conversión.")
         if not model.strip():
-            raise ValueError("Se requiere el identificador del modelo para construir el inventario.")
+            raise ValueError("Se requiere el nombre del modelo.")
         if not center.strip():
-            raise ValueError("Se requiere el centro productor para construir el inventario.")
+            raise ValueError("Se requiere el centro de modelamiento.")
         if longitude_convention not in {"0_360", "-180_180"}:
             raise ValueError("La convención longitudinal debe ser '0_360' o '-180_180'.")
 
@@ -91,13 +88,20 @@ class Grib2ToNetCDF:
         return f"<Grib2ToNetCDF con {len(self.grib_files)} archivos GRIB2>"
 
     def run_conversion(self, output_dir: str | Path) -> Path:
-        """Crea la estructura del NetCDF final de una corrida meteorológica."""
+        """Crea y llena el NetCDF final de una corrida de modelo.
 
-        # Lectura de configuración, revisión de archivos e inventario WGRIB2
+        Args:
+            output_dir: Directorio donde se crea el NetCDF final.
+
+        Returns:
+            Ruta del NetCDF creado.
+        """
+
+        # Inventario usando wgrib2 y definición de variables NetCDF.
         self._build_inventory()
         self._build_netcdf_variables()
 
-        # Construcción de coordenadas y estructura NetCDF
+        # Creación del NetCDF y preparación de sus coordenadas.
         reference_time = self.wgrib2_inventory["reference_time"].iloc[0]
         netcdf_output = Path(output_dir) / (
             f"{self.center}-{self.model}_{reference_time:%Y%m%d}_{reference_time:%H}Z.nc"
@@ -107,9 +111,14 @@ class Grib2ToNetCDF:
 
         netcdf_output.parent.mkdir(parents=True, exist_ok=True)
         dataset = self._create_netcdf(netcdf_output)
-        dataset.close()
+        try:
+            # lectura de matrices en GRIB2 y escritura en el NetCDF final.
+            self._write_grib_messages(dataset)
+        finally:
+            # El cierre libera recursos aunque la conversión no complete todas las matrices.
+            dataset.close()
 
-        logger.info("Estructura NetCDF completada para %s: %s", self.model, netcdf_output)
+        logger.info(f"Conversión GRIB2 a NetCDF completada: {netcdf_output}")
         return netcdf_output
 
     # ------------------------------------------------------------------
@@ -117,7 +126,7 @@ class Grib2ToNetCDF:
     # ------------------------------------------------------------------
 
     def _run_wgrib2_command(self, grib_file: Path) -> str:
-        """Ejecuta WGRIB2 sobre un archivo GRIB2 y devuelve su inventario."""
+        """Ejecuta WGRIB2 para obtener el inventario con nomenclatura NCEP de un archivo GRIB2."""
 
         command = ["wgrib2", "-names", "ncep", "-T", "-VT", "-domain", "-lev0", "-nxny", "-ctl_inv", str(grib_file)]
 
@@ -125,14 +134,14 @@ class Grib2ToNetCDF:
             result = sp.run(command, capture_output=True, text=True, check=True)
         except sp.CalledProcessError as error:
             detail = error.stderr.strip() or str(error)
-            raise RuntimeError(f"WGRIB2 no pudo inventariar el archivo {grib_file.name} del modelo {self.model}: {detail}") from error
+            raise RuntimeError(f"WGRIB2 fallo para {grib_file.name}: {detail}") from error
 
         if not result.stdout.strip():
-            raise RuntimeError(f"WGRIB2 no devolvió mensajes para el archivo {grib_file.name} del modelo {self.model}.")
+            raise RuntimeError(f"WGRIB2 no devolvió mensajes para {grib_file.name}")
         return result.stdout
 
     def _parse_wgrib2_output(self, grib_file: Path, output: str) -> pd.DataFrame:
-        """Interpreta la salida de WGRIB2 con los argumentos de inventario.
+        """Interpreta el inventario generado por WGRIB2.
 
         El comando ejecutado es:
 
@@ -149,6 +158,9 @@ class Grib2ToNetCDF:
         fecha de corrida, tiempo válido, dominio, nivel, tamaño de grilla y
         `ctl_inv`. El cuarto componente opcional de la definición de parámetro
         corresponde a una tabla local y no interviene en esta fase.
+
+        Devuelve una fila por mensaje con sus metadatos, nombre inicial, tiempo,
+        nivel, dominio y tamaño de grilla.
         """
         rows = []
 
@@ -162,7 +174,7 @@ class Grib2ToNetCDF:
             nx, ny = (int(value) for value in grid_size.strip("()").split(" x "))
             parameter_signature = "-".join((discipline, category, parameter))
 
-            # Logica para el nombre de variables, sigue nomenclatura g2ctl
+            # Los niveles isobáricos comparten una variable vertical; los demás niveles forman parte del nombre.
             level_suffix = f"{statistical_process}{level}" if statistical_process == "ave" else level
             if self._match_pressure_level(level):
                 var_name = f"{short_name.lower()}prs"
@@ -202,23 +214,22 @@ class Grib2ToNetCDF:
         return pd.DataFrame(rows)
 
     def _build_inventory(self) -> pd.DataFrame:
-        """Construye el inventario completo conservando el orden de los archivos."""
+        """Crea `wgrib2_inventory` con una fila por mensaje de la corrida."""
         inventory_frames = []
 
-        # Revisión de archivos GRIB2
+        # Verificación de los archivos GRIB2 de entrada.
         for grib_file in self.grib_files:
             if not grib_file.is_file():
                 raise FileNotFoundError(f"No se encontró el archivo GRIB2 {grib_file} para el modelo {self.model}.")
 
-        # Lectura de salidas WGRIB2
+        # Interpretación NCEP de los metadatos GRIB2.
         for grib_file in self.grib_files:
             output = self._run_wgrib2_command(grib_file)
             inventory_frames.append(self._parse_wgrib2_output(grib_file, output))
 
-        # El orden de las filas se respeta porque es el contenido de los archivos
+        # Cada archivo conserva su secuencia de mensajes dentro del inventario.
         self.wgrib2_inventory = pd.concat(inventory_frames, ignore_index=True)
         logger.info("Inventario WGRIB2 completado para %s: %s mensajes en %s archivos.", self.model, len(self.wgrib2_inventory), len(self.grib_files))
-        return self.wgrib2_inventory
 
     # ------------------------------------------------------------------
     # Consolidación de variables NetCDF
@@ -226,11 +237,11 @@ class Grib2ToNetCDF:
 
     @classmethod
     def _match_pressure_level(cls, level: str) -> re.Match[str] | None:
-        """Reconoce niveles isobáricos textuales como ``500mb``."""
+        """Reconoce niveles isobáricos textuales como `500mb`."""
         return cls._PRESSURE_LEVEL.fullmatch(level)
 
     def _read_grib2_configurations(self) -> tuple[dict, dict]:
-        """Lee las reglas locales y los remapeos del centro productor."""
+        """Carga las definiciones locales y los remapeos YAML del centro productor."""
 
         if not self.configuration_yml.is_file():
             raise FileNotFoundError(
@@ -244,11 +255,7 @@ class Grib2ToNetCDF:
                 "category_range": configuration["local_definitions_reserved"]["category_range"],
                 "parameter_range": configuration["local_definitions_reserved"]["parameter_range"],
             }
-            center_remappings = (
-                {}
-                if self.center == "ncep"
-                else configuration["remappings"].get(self.center, {})
-            )
+            center_remappings = {} if self.center == "ncep" else configuration["remappings"].get(self.center, {})
         except yaml.YAMLError as error:
             raise ValueError(f"La configuración YAML es inválida en {self.configuration_yml}") from error
         except (KeyError, TypeError) as error:
@@ -256,9 +263,9 @@ class Grib2ToNetCDF:
         return local_definitions, center_remappings
 
     def _validate_inventory(self) -> None:
-        """Comprueba que el inventario describa una sola corrida y su subset."""
+        """Valida una corrida homogénea y que el área de subset este contenida en el dominio."""
 
-        # Comprueba que se hayan escaneado archivo grib2
+        # El inventario debe contener mensajes GRIB2.
         if self.wgrib2_inventory is None or self.wgrib2_inventory.empty:
             raise RuntimeError(f"Los archivos revisado no corresponden al formato grib2 o no contienen información")
         inventory = self.wgrib2_inventory
@@ -266,18 +273,18 @@ class Grib2ToNetCDF:
         domains = inventory["domain"].unique()
         grid_shapes = inventory[["nx", "ny"]].drop_duplicates()
         if len(reference_times) != 1:
-            raise RuntimeError(f"Los archivos no corresponden a la misma corrida del modelo {self.model}")
+            raise RuntimeError(f"No existe una sola fecha de inicializacion de la corrida de {self.model}")
         if len(domains) != 1:
-            raise RuntimeError(f"Los archivos tienen dominios distintos: {domains.tolist()}.")
+            raise RuntimeError(f"No todos los archivos GRIB2 comparten el mismo dominio: {domains.tolist()}.")
         if len(grid_shapes) != 1:
-            raise RuntimeError(f"Los archivos no tienen la misma resolución (distintos grid shapes)")
+            raise RuntimeError(f"Los archivos grib2 no tienen la misma resolución (distintos grid shapes)")
 
         self.domain = domains[0]
-        # Verificación que el área de subset es valida
+        # Validación geográfica del área solicitada.
         if self.area is None:
             return
 
-        # crea area bbox
+        # Rectángulo geográfico del área.
         west, south, east, north = self.area
         if not (-180 <= west < east <= 180 and -90 <= south < north <= 90):
             raise ValueError(
@@ -285,23 +292,23 @@ class Grib2ToNetCDF:
             )
         area_geometry = box(west, south, east, north)
 
-        # crea domain bbox
+        # Rectángulo geográfico del dominio GRIB.
         domain_match = self._DOMAIN_LIMITS.fullmatch(self.domain)
         north, south, west, east = map(float, domain_match.group("north", "south", "west", "east"))
         domain_geometry = box(west, south, east, north)
 
-        # Comparacion dominio vs area
+        # Contención del área dentro del dominio.
         if not domain_geometry.covers(area_geometry):
-            raise RuntimeError(f"El área solicitada no está contenida en el dominio {self.domain} del modelo {self.model}.")
+            raise RuntimeError(f"El área solicitada no está contenida en el dominio {self.domain}")
 
     def _build_coordinates(self) -> None:
-        """Construye los ejes temporal y de presión para el NetCDF posterior."""
+        """Deriva las coordenadas temporal y vertical, junto con sus índices de escritura."""
 
-        # Eje temporal: conserva exactamente los tiempos válidos inventariados.
+        # Los tiempos válidos definen los índices temporales de escritura.
         self.time_list = sorted(self.wgrib2_inventory["valid_time"].unique())
         self.time_map = {valid_time: index for index, valid_time in enumerate(self.time_list)}
 
-        # Eje vertical: conserva los niveles isobáricos descendentes del inventario.
+        # Los niveles isobáricos se ordenan de mayor a menor presión.
         self.pressure_levels = sorted(
             {
                 int(match.group(1))
@@ -316,9 +323,15 @@ class Grib2ToNetCDF:
         }
 
     def _create_netcdf(self, netcdf_output: Path) -> Dataset:
-        """Crea el NetCDF final, sus coordenadas y sus variables."""
+        """Crea el NetCDF final con atributos, coordenadas y variables vacías.
 
-        # Abriendo el NetCDF y añadiendo atributos
+        La dimensión `time` es ilimitada y su coordenada se escribe antes de las
+        matrices. Las variables isobáricas usan cuatro dimensiones y las demás
+        usan tres; todas las variables meteorológicas usan compresión y
+        cuantización decimal.
+        """
+
+        # Atributos que identifican la corrida y la convención longitudinal.
         dataset = Dataset(netcdf_output, "w", format="NETCDF4")
         reference_time = self.wgrib2_inventory["reference_time"].iloc[0]
         dataset.title = "Conversión GRIB2 a NetCDF"
@@ -330,36 +343,35 @@ class Grib2ToNetCDF:
 
         latitude, longitude = self._prepare_netcdf_grid(self.grib_files[0])
 
-        # Creando Dimensiones
-        dataset.createDimension("time", len(self.time_list))
+        # Dimensiones espaciales, vertical y temporal del producto final.
+        dataset.createDimension("time", None)
         dataset.createDimension("lev", len(self.pressure_levels))
         dataset.createDimension("latitude", len(latitude))
         dataset.createDimension("longitude", len(longitude))
 
-        # Variable time
+        # Coordenada temporal de longitud ilimitada.
         time_coordinate = dataset.createVariable("time", "f8", ("time",))
         time_coordinate.units = "hours since 1800-01-01 00:00:00"
-        time_coordinate[:] = date2num(self.time_list, time_coordinate.units)
 
-        # Variable lev
+        # Coordenada vertical isobárica.
         lev_coordinate = dataset.createVariable("lev", "i2", ("lev",))
         lev_coordinate.units = "millibars"
         lev_coordinate[:] = self.pressure_levels
 
-        # Variable latitud
+        # Coordenada latitudinal.
         latitude_coordinate = dataset.createVariable("latitude", "f4", ("latitude",))
         latitude_coordinate.units = "degrees_north"
         latitude_coordinate[:] = latitude
 
-        # Variable longitud
+        # Coordenada longitudinal.
         longitude_coordinate = dataset.createVariable("longitude", "f4", ("longitude",))
         longitude_coordinate.units = "degrees_east"
         longitude_coordinate[:] = longitude
 
-        # Creando la variables para las demas
+        # Variables meteorológicas según su estructura vertical.
         for variable in self.netcdf_variables.itertuples(index=False):
             dimensions = ("time", "lev", "latitude", "longitude") if variable.is_pressure else ("time", "latitude", "longitude")
-            netcdf_variable = dataset.createVariable(variable.var_name, "f4", dimensions, zlib=True)
+            netcdf_variable = dataset.createVariable(variable.var_name, "f4", dimensions, zlib=True, least_significant_digit=2)
 
             if variable.output_units is not None:
                 netcdf_variable.units = variable.output_units
@@ -371,29 +383,29 @@ class Grib2ToNetCDF:
         Obtiene las coordenadas con `latlons()`, normaliza las longitudes
         según `longitude_convention`, calcula el orden de las columnas y
         aplica el área opcional. Conserva `latitude_indices` y
-        longitude_indices` para que la escritura posterior recorte y
+        `longitude_indices` para que la escritura posterior recorte y
         reordene las matrices GRIB sin interpolación. Devuelve las coordenadas
         finales del NetCDF sin leer matrices meteorológicas.
         """
 
-        # Lectura de coordenadas del primer mensaje GRIB.
+        # Coordenadas del primer mensaje GRIB.
         with pygrib.open(str(grib_file)) as source_grib:
             latitude, longitude = source_grib.message(1).latlons()
         latitude = latitude[:, 0]
         longitude = longitude[0, :]
 
-        # Normalización de longitudes para el NetCDF final.
+        # Conversión de longitudes a la convención elegida para el producto.
         if self.longitude_convention == "0_360":
             longitude = np.mod(longitude, 360)
         else:
             longitude = (longitude + 180) % 360 - 180
 
-        # Orden de columnas de la matriz GRIB en la convención final.
+        # Índices de columnas que ordenan coordenadas y matrices con la misma longitud.
         latitude_indices = np.arange(len(latitude))
         longitude_indices = np.argsort(longitude)
         ordered_longitude = longitude[longitude_indices]
 
-        # Selección de la grilla solicitada por el usuario.
+        # Selección de los puntos de la grilla solicitada.
         if self.area is not None:
             west, south, east, north = self.area
             latitude_mask = (latitude >= south) & (latitude <= north)
@@ -412,25 +424,88 @@ class Grib2ToNetCDF:
             if not len(latitude_indices) or not len(longitude_indices):
                 raise RuntimeError(f"El área solicitada no contiene puntos de la malla del modelo {self.model}.")
 
-        # Índices reutilizados durante la escritura de matrices.
+        # Índices geográficos aplicados a cada matriz decodificada.
         self.latitude_indices = latitude_indices
         self.longitude_indices = longitude_indices
 
         # Coordenadas finales del NetCDF.
         return latitude[latitude_indices], longitude[longitude_indices]
 
-    def _build_netcdf_variables(self) -> pd.DataFrame:
-        """Agrupa los mensajes inventariados por su variable NetCDF final."""
+    # ------------------------------------------------------------------
+    # Lectura archivos grib2 y escritura NetCDF
+    # ------------------------------------------------------------------
 
-        # Lectura de configuración meteorológica y revisión de la corrida
+    def _write_grib_messages(self, dataset: Dataset) -> None:
+        """Escribe el eje temporal y las matrices GRIB en el NetCDF.
+
+        PyGRIB abre cada archivo una vez para leer sus mensajes (data). Los
+        índices geográficos y las posiciones temporal y vertical ya están
+        preparados antes de iniciar esta escritura.
+        """
+
+        # La coordenada temporal extiende la dimensión ilimitada antes de escribir las variables.
+        for valid_time, time_index in self.time_map.items():
+            dataset["time"][time_index] = date2num(
+                valid_time, dataset["time"].units
+            )
+
+        for grib_file in self.grib_files:
+            file_inventory = self.wgrib2_inventory.loc[
+                self.wgrib2_inventory["grib_file"] == str(grib_file)
+            ]
+
+            # lectura secuencial de los mensajes del archivo GRIB2.
+            with pygrib.open(str(grib_file)) as source_grib:
+                for message_index, grib_message in enumerate(source_grib):
+                    inventory_row = file_inventory.iloc[message_index]
+                    self._write_message(dataset, inventory_row, grib_message)
+
+    def _write_message(self, dataset: Dataset, inventory_row: pd.Series, grib_message) -> None:
+        """Selecciona, convierte cuando corresponde y escribe una matriz GRIB.
+
+        La selección aplica el subset espacial y el orden longitudinal de las
+        coordenadas NetCDF. Los remapeos YAML usan sólo factor y desplazamiento.
+        Las variables isobáricas se escriben con dimensiones `time, lev,
+        latitude, longitude`; las demás usan `time, latitude, longitude`.
+        """
+
+        variable_name = inventory_row.var_name
+        valid_time = inventory_row.valid_time
+        pressure_match = self._match_pressure_level(inventory_row.level)
+        conversion = self.netcdf_variables.loc[self.netcdf_variables["var_name"] == variable_name].iloc[0]
+
+        # Subset espacial y orden longitudinal definidos por las coordenadas NetCDF.
+        values = grib_message.values[np.ix_(self.latitude_indices, self.longitude_indices)]
+
+        # Factor y desplazamiento definidos para el parámetro remapeado.
+        if conversion.remapping_applied:
+            values = values * conversion.factor + conversion.offset
+
+        # Variables isobáricas usan tiempo y nivel; las demás usan sólo tiempo.
+        time_index = self.time_map[valid_time]
+        if pressure_match is not None:
+            pressure_level = int(pressure_match.group(1))
+            lev_index = self.lev_map[pressure_level]
+            dataset[variable_name][time_index, lev_index, :, :] = values
+        else:
+            dataset[variable_name][time_index, :, :] = values
+
+    def _build_netcdf_variables(self) -> pd.DataFrame:
+        """Construye `netcdf_variables` a partir de parámetros y remapeos YAML.
+
+        Cada fila contiene el nombre final, la estructura vertical, las unidades,
+        el factor, el desplazamiento y el estado de remapeo de una variable
+        meteorológica.
+        """
+
+        # Definiciones meteorológicas y coordenadas de la corrida.
         local_definitions, center_remappings = (
             self._read_grib2_configurations()
         )
         self._validate_inventory()
         self._build_coordinates()
 
-        # Los remapeos sustituyen el nombre NCEP dentro de `var_name`, que ya
-        # conserva la agrupación g2ctl por presión, nivel y promedio.
+        # Los remapeos sustituyen el nombre NCEP y conservan nivel y proceso estadístico.
         variable_rows = []
         for signature, messages in self.wgrib2_inventory.groupby(
             "parameter_signature", sort=False

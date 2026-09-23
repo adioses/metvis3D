@@ -23,10 +23,11 @@ registra el contrato y las verificaciones; el código operativo reside en
 
 ## Estado de implementación
 
-**Última actualización:** 2026-09-22
-**Fase activa:** 4. Lectura única PyGRIB y escritura.
-**Estado global:** contrato de ejecución, inventario WGRIB2, consolidación de
-variables y estructura NetCDF verificados; falta escribir las matrices.
+**Última actualización:** 2026-09-23
+**Fase activa:** 5. Verificación científica y operación.
+**Estado global:** las fases de contrato, inventario WGRIB2, consolidación de
+variables, estructura NetCDF y escritura de matrices están verificadas. La
+verificación científica de los campos convertidos continúa en la fase 5.
 
 | Fase | Estado | Resultado verificable | Próximo paso |
 |---|---|---|---|
@@ -34,8 +35,8 @@ variables y estructura NetCDF verificados; falta escribir las matrices.
 | 1. Inventario WGRIB2 | Verificada | Inventario completo de GFS y ECMWF, en orden por archivo | Consolidar variables, tiempos y niveles. |
 | 2. Plan de variables y nombres | Verificada | Nombres finales, remapeos, tiempos y niveles de GFS y ECMWF | Crear la estructura NetCDF y preparar el subset. |
 | 3. NetCDF y subset | Verificada | Estructura, coordenadas e índices de recorte verificables | Leer matrices y escribir el NetCDF final. |
-| 4. Escritura con PyGRIB | Pendiente | Una pasada PyGRIB y NetCDF completo | Implementar la escritura de matrices. |
-| 5. Verificación científica | Pendiente | Casos GFS y ECMWF documentados | Ejecutar al disponer del conversor. |
+| 4. Escritura con PyGRIB | Verificada | Una pasada PyGRIB por archivo y un NetCDF completo para GFS y ECMWF | Iniciar la verificación científica de los campos escritos. |
+| 5. Verificación científica | Pendiente | Casos GFS y ECMWF documentados | Verificar los campos convertidos contra sus fuentes GRIB2. |
 
 Estados permitidos: `Pendiente`, `En definición`, `En implementación`,
 `Verificada` o `Bloqueada`. Un estado `Verificada` exige el criterio de cierre
@@ -83,6 +84,12 @@ este documento.
 | 2026-09-22 | Acordado | Sustituye la salida longitudinal única `-180..180`: el constructor recibe `longitude_convention`, con `0_360` como valor predeterminado y `-180_180` como alternativa. El área de usuario continúa en EPSG:4326 `-180..180`. | Las coordenadas y las columnas GRIB se normalizan y ordenan según la convención elegida; el NetCDF registra la convención en un atributo global. |
 | 2026-09-22 | Acordado | Las fuentes controladas se tratan como grillas geográficas rectangulares; no se repite un contraste entre `nx`/`ny` inventariado y `latlons()`, ni se valida su rectangularidad en la fase 3. | El inventario ya garantiza una única resolución por corrida; una grilla con otra geometría requerirá un acuerdo previo antes de ser admitida. |
 | 2026-09-22 | Verificada | La fase 3 se implementó en `src/standardize/grib2_to_netcdf.py`: `_create_netcdf()` crea dimensiones, coordenadas, atributos y variables; `_prepare_netcdf_grid()` normaliza, ordena y recorta la grilla, conservando índices de matriz. En Docker `dev` se verificaron GFS y ECMWF reales, ambas convenciones longitudinales, con y sin área; la estructura NetCDF se verificó en memoria sin crear productos temporales. | La fase 4 sólo leerá matrices PyGRIB y las escribirá usando los índices geográficos preparados. |
+| 2026-09-23 | Acordado | Todas las variables meteorológicas creadas por `_create_netcdf()` usarán compresión `zlib` y `least_significant_digit=2`; las coordenadas conservarán su representación actual. | La cuantización decimal reduce el volumen y costo de escritura, y permite comparar el rendimiento con la referencia que emplea la misma opción. La fase 4 se medirá primero con cinco GRIB GFS usando Python 3.11. |
+| 2026-09-23 | Verificada | La muestra GFS de cinco archivos (`f000`–`f012`) con área `(-130, -57, -10, 30)` y convención `0_360` escribió 1,259 mensajes en un único NetCDF de 196 MiB. En Python 3.11 del contenedor, el inventario WGRIB2 tomó 3.88 s, la lectura PyGRIB y escritura 11.16 s y la corrida completa 22.45 s. | El NetCDF contenía los cinco tiempos y `tmp2m` con zlib y `least_significant_digit=2`; frente al GRIB `f000`, su diferencia máxima absoluta fue 0.003662 K, dentro de la cuantización acordada. Sus productos se eliminaron antes del benchmark completo. |
+| 2026-09-23 | Verificada | Las comparaciones de `tmp2m` en `f000` mostraron el GRIB de extensión completa, el rectángulo solicitado y el NetCDF convertido para GFS y ECMWF. GFS fuente cubre 216–354°E y 70°S–30°N, por lo que el subset 230–350°E y 57°S–30°N conserva gran parte de su dominio; ECMWF parte de la grilla global. | No hay remuestreo: la coincidencia se obtiene con selección de índices y reordenamiento longitudinal. La diferencia máxima absoluta fue 0.003662 K para la muestra GFS cuantizada y 0.000015 K para el NetCDF ECMWF existente. Sus figuras se eliminaron antes del benchmark completo. |
+| 2026-09-23 | Acordado | El benchmark GFS usa los archivos que coinciden con `data/raw/GFS27/gfs*.fNNN` y escribe exclusivamente en `data/standardized/benchmark/`, sin sufijo de fecha. Por defecto toma los 129 archivos, mientras `--file-count` permite una muestra inicial controlada. Su `ncep-gfs_benchmark.log` registra una línea `INVENTORY` y una `CONVERT` por archivo, con duración, acumulado, promedio, ETA y número de mensajes. | El producto previo se elimina manualmente antes de una nueva corrida; el archivo final conserva el nombre normal del conversor dentro de la carpeta de benchmark. El log permite seguir y comparar la ejecución con la referencia. |
+| 2026-09-23 | Verificada | La fase 4 se implementó en `src/standardize/grib2_to_netcdf.py`. `_write_grib_messages()` escribe primero la coordenada `time` de dimensión ilimitada y recorre una vez los mensajes de cada archivo; `_write_message()` selecciona y reordena cada matriz con los índices de fase 3, aplica sólo `factor + offset` cuando existe remapeo y la escribe según su estructura 3D o 4D. | La dimensión temporal no hace crecer los chunks con la duración completa de la corrida. El NetCDF se cierra aun si la conversión falla y queda disponible para análisis. |
+| 2026-09-23 | Verificada | Amplía el benchmark inicialmente definido para GFS: admite cualquier combinación de centro y modelo mediante sus argumentos de entrada y nombra el log como `<center>-<model>_benchmark.log`. Las corridas completas produjeron `ncep-gfs_20260903_00Z.nc` desde 129 archivos GFS en 39.90 min, y `ecmwf-ecmwf_20260903_00Z.nc` desde 65 archivos ECMWF globales en 7.15 min. | Los NetCDF y sus logs quedaron en `data/standardized/benchmark/` como evidencia operativa reproducible. La comprobación científica de los valores se realizará en la fase 5. |
 
 ## Protocolo entre conversaciones
 
@@ -121,10 +128,10 @@ hacerse luego de indicacion explicita
 - La fase 3 abre sólo el primer GRIB para obtener `latlons()` de su primer
   mensaje. La fase 4 lee los valores de los mensajes una vez por archivo;
   PyGRIB no define el nombre final de las variables.
-- La asociación entre una fila de inventario y un mensaje PyGRIB es el orden de
-  las filas dentro del mismo archivo. No se almacena una posición explícita ni
-  se realizará una pasada PyGRIB adicional para contar o validar encabezados;
-  la lectura única de `latlons()` de fase 3 no lee valores ni cumple ese fin.
+- La asociación entre una fila de inventario y un mensaje decodificado usa la
+  posición dentro del mismo archivo. No se almacena una posición explícita ni
+  se realizará una pasada adicional para contar o validar encabezados; la
+  lectura única de `latlons()` de fase 3 no lee valores ni cumple ese fin.
 - El tiempo válido se toma de WGRIB2 con `-VT`. El eje `time` conserva todos
   los tiempos válidos únicos recibidos, sin exigir cadencia, rango ni intervalos.
   El usuario entrega una lista de GRIB sin plazos faltantes para su uso.
@@ -139,8 +146,10 @@ hacerse luego de indicacion explicita
   sus valores.
 - Las únicas transformaciones de valores autorizadas son las declaradas en
   YAML mediante `factor` y `offset`.
-- Los errores se informan con el modelo, corrida, archivo y mensaje afectados,
-  y detienen la conversión.
+- La dimensión `time` es ilimitada y su coordenada se escribe antes de las
+  matrices, manteniendo el acceso por bloque temporal durante la escritura.
+- Un error detiene la conversión y el NetCDF creado se cierra para que pueda
+  analizarse hasta su último dato escrito.
 
 ## Flujo objetivo
 
@@ -372,7 +381,8 @@ geográficos que la fase 4 aplicará a las matrices.
 - Las variables de superficie usan `(time, latitude, longitude)` y las de
   presión `(time, lev, latitude, longitude)`.
 - Se crean primero el archivo, los ejes de tiempo y `lev` conocidos por el
-  inventario y los atributos globales. El eje `lev` conserva niveles
+  inventario y los atributos globales. La dimensión `time` es ilimitada y su
+  coordenada se escribe antes de las matrices. El eje `lev` conserva niveles
   isobáricos descendentes y usa unidades `millibars`, igual que la referencia.
 - La fase 3 abre sólo el primer GRIB y obtiene `latlons()` de su primer
   mensaje. No lee matrices meteorológicas. Con esas coordenadas crea
@@ -414,8 +424,8 @@ explícitas y escribirlos en el NetCDF final.
 
 - Para cada archivo, PyGRIB se abre una vez y sus mensajes se recorren en
   orden.
-- El índice de iteración se usa para recuperar la fila WGRIB2 del mismo
-  archivo; no hay una pasada previa de PyGRIB para encabezados ni conteos.
+- El índice de iteración recupera la fila de inventario del mismo archivo; no
+  hay una pasada previa para encabezados ni conteos.
 - La malla, las variables NetCDF y los índices geográficos ya fueron creados
   en la fase 3; no se vuelven a calcular durante la lectura de valores.
 - Cada matriz se recorta y, cuando corresponda, se reordena mediante los
@@ -424,20 +434,20 @@ explícitas y escribirlos en el NetCDF final.
   evalúan fórmulas arbitrarias.
 - La matriz final se escribe en su índice de tiempo y, para niveles
   isobáricos, en su índice vertical.
-- Cualquier error de lectura, índice, malla, conversión o escritura se informa
-  con el contexto meteorológico y detiene la corrida.
+- Un error de la conversión detiene la corrida. El cierre del NetCDF se ejecuta
+  de todos modos para conservar el archivo creado hasta ese punto.
 
-### Métodos previstos
+### Métodos implementados
 
 - `_write_grib_messages(dataset)`
 - `_write_message(dataset, inventory_row, grib_message)`
-- `_apply_value_conversion(values, conversion)`
 
 ### Criterio de cierre
 
-Una corrida de prueba escribe un solo NetCDF, conserva el subset solicitado y
-demuestra el factor 100 de la cobertura nubosa ECMWF sin alterar los demás
-campos.
+Las corridas completas GFS y ECMWF escriben un único NetCDF final mediante una
+pasada de valores por archivo, conservando el subset y reordenamiento
+preparados en la fase 3. La verificación científica de los valores, incluido
+el factor 100 de la cobertura nubosa ECMWF, corresponde a la fase 5.
 
 ## Fase 5 — Verificación científica y operación
 
@@ -464,6 +474,6 @@ pasen a ser contractuales.
 
 ## Orden de implementación
 
-La próxima conversación debe comenzar por la fase 3. No se implementará una
-fase posterior mientras sus decisiones pendientes no estén definidas y su
-criterio de cierre no pueda verificarse.
+La próxima conversación debe comenzar por la fase 5. La verificación
+científica se limitará a sus casos mínimos y registrará sus resultados antes
+de decidir cambios al conversor o declarar la fase verificada.

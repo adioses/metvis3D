@@ -6,6 +6,9 @@ data/standardized/*
 outputs/*
 !outputs/.gitkeep
 
+# Notebooks development
+notebooks/development_test.ipynb
+
 # Insumos temporales específicos de ParaView
 paraview/render_data/*
 !paraview/render_data/.gitkeep
@@ -29,6 +32,7 @@ assets/boundaries/*
 *.jpg
 
 # Python y Jupyter
+**.DS_Store
 __pycache__/
 *.py[cod]
 .pytest_cache/
