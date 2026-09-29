@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pygrib
 import yaml
+from netCDF4 import date2num
 
 from standardize.grib2_to_netcdf import Grib2ToNetCDF
 
@@ -67,6 +68,12 @@ class TimedGrib2ToNetCDF(Grib2ToNetCDF):
 
     def _write_grib_messages(self, dataset) -> None:
         """Lee y escribe cada GRIB conservando el tiempo por archivo."""
+
+        # La coordenada temporal se completa antes de medir la lectura por archivo.
+        for valid_time, time_index in self.time_map.items():
+            dataset["time"][time_index] = date2num(
+                valid_time, dataset["time"].units
+            )
 
         for grib_file in self.grib_files:
             started_at = time.perf_counter()

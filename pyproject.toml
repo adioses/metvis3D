@@ -10,11 +10,5 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = []
 
-[project.scripts]
-metvis = "metvis3d.cli:main"
-
 [tool.setuptools.packages.find]
 where = ["src"]
-
-[tool.pytest.ini_options]
-testpaths = ["tests"]

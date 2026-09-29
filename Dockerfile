@@ -14,4 +14,4 @@ COPY --chown=$MAMBA_USER:$MAMBA_USER src ./src
 RUN micromamba run --name metvis3d pip install --no-deps .
 
 ENTRYPOINT ["micromamba", "run", "--name", "metvis3d"]
-CMD ["metvis", "--help"]
+CMD ["jupyter", "lab", "--ip=0.0.0.0", "--port=8888", "--no-browser", "--ServerApp.root_dir=/workspace"]

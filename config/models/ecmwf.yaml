@@ -13,6 +13,8 @@ standardization:
 selected_variables:
   - ugrdprs
   - vgrdprs
+  - vvelprs
+  - tcdcclm
   - tmpprs
   - rhprs
   - hgtprs

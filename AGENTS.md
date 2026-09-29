@@ -16,9 +16,9 @@ web piloto e integración/documentación del flujo.
   GRIB originales desde procesos del proyecto.
 - Cada modelo y corrida produce un único NetCDF final, no NetCDF parciales por
   variable ni por tiempo.
-- Las dimensiones canónicas son `time`, `pressure`, `latitude` y `longitude`.
+- Las dimensiones canónicas son `time`, `lev`, `latitude` y `longitude`.
   Superficie usa `(time, latitude, longitude)` y presión usa
-  `(time, pressure, latitude, longitude)`.
+  `(time, lev, latitude, longitude)`.
 - Conservar los niveles verticales nativos de cada modelo.
 - Las transformaciones adicionales, la convención definitiva de longitudes y
   las comprobaciones del conversor se definirán al diseñar el código de
@@ -28,10 +28,8 @@ El contrato detallado se mantiene en `docs/data-standard.md`.
 
 ## Herramientas y ejecución
 
-- Desarrollo local: Docker Compose y la imagen Micromamba definida en
-  `Dockerfile`.
-- Despliegue HPC: el mismo `environment.yml` mediante Miniconda/Conda, sin
-  depender de Docker.
+- Desarrollo local: Docker Compose y la imagen Micromamba definida en `Dockerfile`.
+- Despliegue HPC: el mismo `environment.yml` mediante Miniconda/Conda, sin depender de Docker.
 - Jupyter Lab sirve para explorar o ajustar parámetros. La lógica operativa
   debe residir en `src/` y configuraciones YAML versionables, no solamente en
   notebooks.
@@ -83,8 +81,7 @@ El contrato detallado se mantiene en `docs/data-standard.md`.
 
 - No incorporar base de datos, Node.js ni otro servicio web hasta confirmar su
   disponibilidad y necesidad en el servidor final.
-- Mantener configuraciones, código y documentación separados de los datos y
-  productos pesados.
+- Mantener configuraciones, código y documentación separados de los datos y productos pesados.
 - No borrar ni alterar archivos existentes sin autorización expresa.
 
 ## Documentación de seguimiento
