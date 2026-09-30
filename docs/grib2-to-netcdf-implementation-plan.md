@@ -111,8 +111,9 @@ Al iniciar un nuevo chat que continúe esta implementación:
 3. No implementar una fase posterior por anticipación; primero cerrar el
    criterio verificable de la fase actual.
 4. Si aparece una decisión científica o de contrato, documentarla antes de
-   codificarla en el registro de este plan. Las decisiones de este conversor no
-   se añaden a `docs/DECISIONS.md` ni a `docs/STATUS.md`.
+   codificarla en el registro de este plan. Las decisiones que además cambien
+   el alcance, la operación o el contrato de datos del proyecto se registran
+   en `context/DECISIONS.md`.
 
 Al cerrar una conversación con avance real:
 

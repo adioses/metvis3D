@@ -1,7 +1,6 @@
 # Guía de trabajo del proyecto
 
-Estas reglas aplican a quienes desarrollen o usen asistentes de programación
-en `metvis3d`.
+Estas reglas aplican al desarrollo de `metvis3d`.
 
 ## Propósito
 
@@ -10,7 +9,7 @@ Preparar datos meteorológicos de modelos numéricos, generar visualizaciones
 proyecto son: estandarización de datos, visualización/animación, plataforma
 web piloto e integración/documentación del flujo.
 
-## Acuerdos vigentes sobre datos
+## Acuerdos sobre estandarización
 
 - `data/raw` es una fuente de solo lectura. No modificar, renombrar ni mover
   GRIB originales desde procesos del proyecto.
@@ -19,12 +18,12 @@ web piloto e integración/documentación del flujo.
 - Las dimensiones canónicas son `time`, `lev`, `latitude` y `longitude`.
   Superficie usa `(time, latitude, longitude)` y presión usa
   `(time, lev, latitude, longitude)`.
-- Conservar los niveles verticales nativos de cada modelo.
-- Las transformaciones adicionales, la convención definitiva de longitudes y
-  las comprobaciones del conversor se definirán al diseñar el código de
-  estandarización.
-
-El contrato detallado se mantiene en `docs/data-standard.md`.
+- Conservar los niveles verticales nativos de cada modelo; `lev` usa niveles
+  isobáricos descendentes en `millibars`.
+- El área de recorte usa `(west, south, east, north)` en `-180..180`, debe
+  estar contenida en el dominio y no puede cruzar el antimeridiano.
+- No interpolar ni remuestrear. Sólo aplicar transformaciones declaradas
+  explícitamente en `config/grib2-definitions.yaml`.
 
 ## Herramientas y ejecución
 
@@ -33,6 +32,11 @@ El contrato detallado se mantiene en `docs/data-standard.md`.
 - Jupyter Lab sirve para explorar o ajustar parámetros. La lógica operativa
   debe residir en `src/` y configuraciones YAML versionables, no solamente en
   notebooks.
+- `src/standardize/grib2_to_netcdf.py` contiene el conversor operativo
+  `Grib2ToNetCDF`: WGRIB2 inventaría metadatos, PyGRIB lee coordenadas y
+  matrices, y NetCDF4 escribe la salida.
+- `scripts/report_grib2_inventory.py` genera los reportes de inventario GRIB2
+  y remapeos.
 - ParaView y Blender consumen plantillas y parámetros configurables. Sus datos
   temporales pertenecen a `paraview/render_data` o `paraview/render_cache`.
 
@@ -46,7 +50,7 @@ El contrato detallado se mantiene en `docs/data-standard.md`.
   aporten al proceso científico, como `handler`, `payload`, `repository`,
   `factory`, `cache`, `persistence` o `atomic`.
 - Cada proceso principal debe tener una función que muestre el flujo completo
-  de forma lineal y legible, por ejemplo `standardize_model_run(...)`.
+  de forma lineal y legible, por ejemplo `run_conversion(...)`.
 - Dentro de la función principal, separar visualmente las etapas relevantes:
   lectura de configuración, revisión de archivos, lectura GRIB, selección de
   variables, construcción de coordenadas, escritura NetCDF y resultado final.
@@ -58,6 +62,9 @@ El contrato detallado se mantiene en `docs/data-standard.md`.
   fijos dentro del código.
 - Antes de implementar un conversor o producto, acordar los casos que requieren
   comprobación o manejo especial.
+- No hay pruebas automatizadas vigentes. Las verificaciones deben ser
+  ejecuciones manuales reproducibles, registradas junto al cambio cuando
+  corresponda.
 - Manejar únicamente los errores esperados y definidos para ese proceso. No
   incorporar condiciones defensivas genéricas ni correcciones automáticas no
   acordadas.
@@ -86,9 +93,9 @@ El contrato detallado se mantiene en `docs/data-standard.md`.
 
 ## Documentación de seguimiento
 
-- `docs/STATUS.md`: foto actual del avance, bloqueos y siguiente actividad.
-- `docs/DECISIONS.md`: registro acumulativo de decisiones técnicas.
-- `docs/ROADMAP.md`: hitos contractuales y resultados esperados.
+- `context/STATUS.md`: foto actual del avance, bloqueos y siguiente actividad.
+- `context/DECISIONS.md`: registro de decisiones confirmadas del proyecto.
+- `context/ROADMAP.md`: hitos contractuales y resultados esperados.
 
 Actualizar el estado o las decisiones sólo cuando exista un avance verificable,
 un acuerdo confirmado o un cambio material de alcance.
