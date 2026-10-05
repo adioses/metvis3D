@@ -6,9 +6,6 @@ model:
 standardization:
   output_name: "GFS_{initialization:%Y%m%dT%H}.nc"
   longitude_range: "-180_180"
-  pressure_units: Pa
-  time_representation: valid_time_end
-  expected_step_hours: 3
 
 # Esta selección es inicial y se ampliará al definir los productos audiovisuales.
 selected_variables:

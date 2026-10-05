@@ -37,9 +37,7 @@ class Grib2ToNetCDF:
         variables: Nombres finales exactos de las variables a convertir.
     """
 
-    _DESCRIPTION_WITH_UNITS = re.compile(
-        r"^(?P<description>.+?)\s+\[(?P<units>[^\[\]]*)\]$"
-    )
+    _DESCRIPTION_WITH_UNITS = re.compile(r"^(?P<description>.+?)\s+\[(?P<units>[^\[\]]*)\]$")
     _PRESSURE_LEVEL = re.compile(r"(\d+)mb")
     _DOMAIN_LIMITS = re.compile(
         r"N=(?P<north>-?\d+(?:\.\d+)?)\s+"
@@ -132,7 +130,7 @@ class Grib2ToNetCDF:
     def _run_wgrib2_command(self, grib_file: Path) -> str:
         """Ejecuta WGRIB2 para obtener el inventario con nomenclatura NCEP de un archivo GRIB2."""
 
-        command = ["wgrib2", "-names", "ncep", "-T", "-VT", "-domain", "-lev0", "-nxny", "-ctl_inv", str(grib_file)]
+        command = ["wgrib2", "-names", "ncep", "-T", "-VT", "-lev", "-lev0", "-nxny", "-varX", "-ctl_inv", str(grib_file)]
 
         try:
             result = sp.run(command, capture_output=True, text=True, check=True)
@@ -172,7 +170,8 @@ class Grib2ToNetCDF:
             if not line.strip():
                 continue
 
-            _, _, forecast_date, valid_time_text, domain, level, grid_size, ctl_inventory = line.split(":", 7)
+            # Decodificar salida de wgrib, se divide por ":"
+            _, _, forecast_date, valid_time, domain, level, grid_size, ctl_inventory = line.split(":", 7)
             short_name, _, parameter_definition, statistical_process, full_name = ctl_inventory.split(maxsplit=4)
             discipline, category, parameter, *_ = parameter_definition.split(",")
             nx, ny = (int(value) for value in grid_size.strip("()").split(" x "))
@@ -196,7 +195,7 @@ class Grib2ToNetCDF:
                     units = None
 
             reference_time = datetime.strptime(forecast_date.removeprefix("D="), "%Y%m%d%H%M%S")
-            valid_time = datetime.strptime(valid_time_text.removeprefix("vt="), "%Y%m%d%H%M%S")
+            valid_time = datetime.strptime(valid_time.removeprefix("vt="), "%Y%m%d%H%M%S")
 
             rows.append(
                 {

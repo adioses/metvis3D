@@ -6,9 +6,6 @@ model:
 standardization:
   output_name: "ECMWF_{initialization:%Y%m%dT%H}.nc"
   longitude_range: "-180_180"
-  pressure_units: Pa
-  time_representation: valid_time_end
-  expected_step_hours: 3
 
 selected_variables:
   - ugrdprs
