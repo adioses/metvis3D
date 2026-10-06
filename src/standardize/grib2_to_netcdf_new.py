@@ -276,9 +276,16 @@ class Grib2ToNetCDF:
             
             # var_data : var{discipline}_{master table}_{local table}_{center}_{parameter_category}_{parameter}
             discipline, master_table, local_table, center, category, parameter = var_data.removeprefix('var').split('_')
+
+            # Definiendo valores respecto a nivel
+            surface_type = int(surface_type)
+            is_isobaric = surface_type == 100
+            level_suffix = 'prs' if is_isobaric else level
+            level_name = 'Isobaric Levels' if is_isobaric else f'{level_name} ({level})'
+            pressure_level = int(surface_values) // 100 if is_isobaric else None
             
             # construyendo varname_key, siguiendo logica de g2ctl
-            varname_key = f"{short_name}//{statistical_process}//:prs" if surface_type == '100' else f"{short_name}//{statistical_process}//:{level}"
+            varname_key = f"{short_name}//{statistical_process}//:{level_suffix}"
 
             rows.append(
                 {
@@ -287,9 +294,11 @@ class Grib2ToNetCDF:
                     "short_name": short_name,
                     "long_name": long_name,
                     "units": units,
-                    "level": 'prs' if surface_type == '100' else level,
+                    "is_isobaric": is_isobaric,
+                    "level_suffix": level_suffix,
                     "level_name": level_name,
-                    "surface_type": int(surface_type),
+                    "pressure_level": pressure_level,
+                    "surface_type": surface_type,
                     "surface_value": surface_values,
                     "statistical_process": statistical_process,
                     "parameter_signature": f"{discipline}-{category}-{parameter}",
@@ -330,34 +339,34 @@ class Grib2ToNetCDF:
 
     def _group_grib2_variables(self):
         inventory = self.inventory
-        group_columns = ["parameter_signature", "varname_key"]
+        group_columns = ['parameter_signature', 'varname_key']
         groups = inventory.groupby(group_columns, sort=True).agg(self.unique_or_join).reset_index()
 
         # Nombre simplificado: elimina siempre el proceso estadístico.
-        groups["base_var_name"] = groups["short_name"] + groups["level"]
-
+        groups['base_var_name'] = groups['short_name'] + groups['level_suffix']
 
         # Decidir si statistical_process se mantiene en el nombre final de la variable
-        name_collision = groups["base_var_name"].duplicated(keep=False) 
+        name_collision = groups['base_var_name'].duplicated(keep=False) 
         process_required = name_collision & groups["statistical_process"].ne("none")
         groups['use_statistical'] = process_required
       
         # Creando nombre final
-        groups["var_name"] = groups["base_var_name"]
+        groups['var_name'] = groups['base_var_name']
         # agregando proceso a quienes lo necesitan
-        cols = ["short_name", "statistical_process", "level"]
-        groups.loc[process_required, "var_name"] = groups.loc[process_required, cols].fillna("").sum(axis=1)
+        cols = ['short_name', 'statistical_process', 'level_suffix']
+        groups.loc[process_required, 'var_name'] = groups.loc[process_required, cols].fillna('').sum(axis=1)
 
         # Si aún hay duplicados, el proceso estadístico no alcanza para distinguirlos.
-        repeated_names = groups[groups["var_name"].duplicated(keep=False)][["var_name", "parameter_signature", "varname_key"]]
+        repeated_names = groups[groups['var_name'].duplicated(keep=False)][['var_name', 'parameter_signature', 'varname_key']]
         if not repeated_names.empty:
             raise RuntimeError( f"No se pudieron distinguir las variables GRIB2: {repeated_names.to_dict('records')}")
         
-        # Limitando variacion solo niveles isobaricos surface_type = 100
-        # True si level_name contiene un único nivel o, si contiene varios niveles, surface_type == 100.
-        groups["valid_var"] = groups["level_name"].str.split(", ").str.len().eq(1)| groups["surface_type"].eq(100)
+        # Los perfiles isobáricos se normalizan como "Isobaric Levels". Se conservan los grupos con una sola descripción vertical; 
+        # los grupos no isobáricos con varias descripciones a variaciones 4D no consideradas, solo se considera variaciones Isobaricas
+        groups['level_name_count'] = inventory.groupby(group_columns, sort=True)['level_name'].nunique().to_numpy()
+        groups['valid_var'] = groups['level_name_count'].eq(1)
 
-        return groups.drop(columns = ['base_var_name','message_id'])
+        return groups.drop(columns = ['base_var_name','message_id','level_name_count'])
 
     # ------------------------------------------------------------------
     # Construir netcdf variables 
@@ -404,7 +413,7 @@ class Grib2ToNetCDF:
             variables.loc[variable.Index, "factor"] = output.get("factor", 1.0)
             variables.loc[variable.Index, "offset"] = output.get("offset", 0.0)
             variables.loc[variable.Index, "remapping_applied"] = True
-            var_name = output["name"] + variable.statistical_process.replace('none','') + variable.level if variable.use_statistical else output["name"] + variable.level
+            var_name = output["name"] + variable.statistical_process.replace('none','') + variable.level_suffix if variable.use_statistical else output["name"] + variable.level_suffix
             variables.loc[variable.Index, "var_name"] = var_name
 
         # Pasando a minusculas los nombres
@@ -427,15 +436,15 @@ class Grib2ToNetCDF:
                 raise RuntimeError(f"El filtro de variables no contiene variables disponibles para el modelo {self.model}")
 
         pressure_keys = variables.loc[
-            variables["surface_type"].eq(100), "varname_key"
+            variables["is_isobaric"], "varname_key"
         ]
         pressure_values = self.inventory.loc[
-            self.inventory["surface_type"].eq(100)
+            self.inventory["is_isobaric"]
             & self.inventory["varname_key"].isin(pressure_keys),
-            "surface_value",
+            "pressure_level",
         ]
         self.pressure_levels = sorted(
-            {int(surface_value) // 100 for surface_value in pressure_values},
+            {int(pressure_level) for pressure_level in pressure_values},
             reverse=True,
         )
         self.lev_map = {
@@ -555,7 +564,7 @@ class Grib2ToNetCDF:
 
         # Variables meteorológicas según su estructura vertical.
         for variable in self.netcdf_variables.itertuples(index=False):
-            pressure_var = variable.surface_type == 100
+            pressure_var = variable.is_isobaric
             dimensions = ("time", "lev", "latitude", "longitude") if pressure_var else ("time", "latitude", "longitude")
             netcdf_variable = dataset.createVariable(variable.var_name, "f4", dimensions, zlib=True, least_significant_digit=2)
             
@@ -626,8 +635,8 @@ class Grib2ToNetCDF:
             values = values * conversion.factor + conversion.offset
 
         time_index = self.time_map[inventory_row.valid_time]
-        if inventory_row.surface_type == 100:
-            pressure_level = int(inventory_row.surface_value) // 100
+        if inventory_row.is_isobaric:
+            pressure_level = inventory_row.pressure_level
             lev_index = self.lev_map[pressure_level]
             dataset[variable_name][time_index, lev_index, :, :] = values
         else:

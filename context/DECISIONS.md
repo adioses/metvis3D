@@ -49,18 +49,32 @@ descendente, con unidades `millibars`. Las coordenadas horizontales usan
 
 ## D-004 — Lectura y trazabilidad de GRIB2
 
-**Fecha:** 2026-09-23  
-**Decisión:** WGRIB2 construye el inventario completo de mensajes y resuelve la
-nomenclatura NCEP; PyGRIB obtiene la grilla y lee las matrices; NetCDF4 escribe
-el producto final. La asociación entre inventario y matriz se conserva por la
-posición del mensaje dentro de cada archivo.
+**Fecha:** 2026-09-23, actualizada 2026-10-05
 
-**Motivo:** cada herramienta se utiliza para la parte del formato GRIB2 que
-interpreta de forma fiable, sin conversiones intermedias.
+**Decisión:** el conversor se especializa en las salidas de modelos numéricos
+seleccionadas por el proyecto. Cada archivo aporta un único tiempo válido y una
+misma grilla para todos sus mensajes; una corrida tiene un archivo por tiempo
+válido, al menos tres archivos y una sola hora de referencia, dominio y grilla.
+WGRIB2 consulta el primer mensaje de cada archivo para validar esos metadatos y
+el primer, segundo y último archivo para definir variables y niveles. PyGRIB
+lee las matrices y WGRIB2 asocia cada mensaje mediante su número explícito.
+NetCDF4 escribe el producto final.
 
-**Impacto:** el NetCDF conserva por variable `parameter_signature` y
-`wgrib2_short_name`. El eje temporal recoge los tiempos válidos disponibles;
-el conversor no completa ni infiere plazos faltantes.
+**Motivo:** las variables y niveles de estas salidas se mantienen en toda la
+corrida. Los únicos campos no persistentes son los acumulados desde el segundo
+tiempo y algunos campos exclusivos del primero. El muestreo de tres archivos
+cubre esas variantes sin inventariar repetidamente metadatos idénticos. WGRIB2
+resuelve la nomenclatura NCEP y proporciona siempre unidades; `[-]` indica una
+cantidad sin unidad física.
+
+**Impacto:** `short_name` es único por disciplina-categoría-parámetro en estas
+fuentes; superficie y proceso estadístico completan la desambiguación de los
+nombres NetCDF. El conversor aplica remapeos, resuelve colisiones y sólo al
+final normaliza los nombres a minúsculas; una colisión restante detiene la
+conversión. El NetCDF conserva `parameter_signature`, centro, tabla maestra y
+tabla local, superficie, proceso estadístico y atributos de remapeo. No conserva el
+`wgrib2_short_name` anterior al remapeo. El eje temporal reúne los tiempos
+válidos de los archivos, sin completar ni inferir plazos faltantes.
 
 ## D-005 — Remapeo y selección de variables
 

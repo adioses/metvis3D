@@ -31,6 +31,31 @@ Un nombre breve no identifica completamente un campo. Dos mensajes con la
 misma cantidad pueden ser distintos si cambia su nivel, intervalo estadístico,
 tiempo válido o grilla.
 
+### Consideraciones de los archivos GRIB2
+
+La descripción anterior corresponde al formato GRIB2 general. Trabaja 
+con las salidas de modelos numéricos seleccionadas por el proyecto, 
+que cumplen estas propiedades de origen:
+
+- cada archivo contiene todos los campos de un único tiempo válido y todos sus
+  mensajes comparten la misma grilla;
+- una corrida entrega un archivo por tiempo válido, con una sola hora de
+  referencia, dominio y grilla; se requieren al menos tres archivos;
+- los niveles y las variables permanecen durante toda la corrida. Los campos
+  persistentes aparecen en todos los tiempos; los acumulados pueden aparecer
+  desde el segundo tiempo y algunos campos sólo aparecen en el primero;
+- `short_name`, obtenido con `-names ncep`, es único para la terna
+  disciplina-categoría-parámetro. Las diferencias entre campos con un mismo
+  nombre breve sólo pueden corresponder a superficie vertical o proceso
+  estadístico.
+
+Estas propiedades permiten inspeccionar el primer mensaje de cada archivo para
+validar su tiempo y grilla, sin repetir consultas equivalentes para sus demás
+mensajes. También permiten definir el esquema de salida con el primer, segundo
+y último archivo de la corrida: representan respectivamente los campos
+iniciales, los acumulados y persistentes, y el horizonte final. No se admite
+una fuente cuyos niveles o variables aparezcan sólo en tiempos intermedios.
+
 ## 2. Secciones de un mensaje GRIB2
 
 | Sección | Contenido | Uso en el proyecto |
@@ -217,12 +242,12 @@ condiciones coinciden con el mensaje real.
 
 ## 9. Inventario de MetVis3D
 
-Esta sección fija el objetivo del inventario. El comando, parser y columnas
-definitivos se completarán al ajustar Grib2ToNetCDF; todavía no son contrato
-permanente de esta guía.
-
-El inventario debe tener una fila por mensaje y conservar datos suficientes para
-repetir un diagnóstico sin inferir semántica desde abreviaturas.
+El inventario de diagnóstico tiene una fila por mensaje y conserva datos
+suficientes para repetir una revisión sin inferir semántica desde abreviaturas.
+El conversor usa el contrato de las salidas de modelo para separar esa tarea de
+la escritura: valida metadatos con el primer mensaje de cada archivo, define
+las variables con el primer, segundo y último archivo, y vuelve a consultar el
+inventario de cada archivo al asociar sus mensajes con PyGRIB.
 
 | Grupo | Datos que se deben preservar |
 |---|---|
@@ -235,11 +260,13 @@ repetir un diagnóstico sin inferir semántica desde abreviaturas.
 | Tablas y origen | Disciplina, tabla maestra, tabla local, centro y subcentro. |
 | Normalización | Firma, nombre final, estado local y remapeo aplicado. |
 
-La exploración comparativa comprobó que retirar -domain reduce el tiempo de
-inventario para ETA, IFS y GFS. La representación candidata con -lev, -lev0,
--varX y -ctl_inv permite reunir nivel legible, bloque vertical, tablas, centro
-y estadística en una línea. Se documentará como implementación cuando el cambio
-de Grib2ToNetCDF y sus scripts dependientes esté verificado.
+La representación con `-lev`, `-lev0`, `-varX` y `-ctl_inv` reúne nivel
+legible, bloque vertical, tablas, centro y estadística en una línea. Durante la
+escritura, su número de mensaje asocia esa línea con `pygrib.message(...)`.
+
+WGRIB2 entrega siempre una descripción con unidades en estas fuentes. Cuando
+la unidad es `[-]`, se conserva como el indicador explícito de una cantidad sin
+unidad física, no como falta de metadato.
 
 Los inventarios exploratorios, CSV, tiempos y stdout crudo viven en
 outputs/grib2-analysis/. Son evidencia de una ejecución, no una definición
@@ -269,28 +296,37 @@ se advierte y no se atribuye significado por analogía.
 
 ## 11. De mensaje GRIB2 a nombre NetCDF
 
-El flujo actual de Grib2ToNetCDF es:
+El flujo actual de `Grib2ToNetCDF` es:
 
 ~~~
 archivos GRIB2 homogéneos
-  -> WGRIB2: inventario de un mensaje por fila
-  -> identidad, nivel, tiempo, grilla y reglas YAML
-  -> PyGRIB: coordenadas y matrices en el mismo orden de mensajes
+  -> WGRIB2: primer mensaje de cada archivo para tiempo y grilla
+  -> WGRIB2: primer, segundo y último archivo para definir variables
+  -> identidad, nivel, superficie, estadística y reglas YAML
+  -> WGRIB2 + PyGRIB: asociación por número de mensaje al escribir cada archivo
   -> NetCDF: un archivo final por corrida
 ~~~
 
-La nomenclatura inicial procede de -names ncep. En la implementación vigente:
+La nomenclatura inicial procede de `-names ncep`. El conversor agrupa primero
+los mensajes por firma, superficie y proceso estadístico, y sólo después
+construye el nombre final. En la implementación vigente:
 
-- niveles isobáricos textuales se agrupan como short_name_en_minúscula + prs;
-  por ejemplo, tmpprs;
+- los niveles isobáricos se agrupan como `short_name + prs`; por ejemplo,
+  `TMPprs` antes de normalizar;
 - otros niveles forman parte del nombre; por ejemplo, tmp2m;
-- para ave se conserva ave en el sufijo;
-- un remapeo sustituye el nombre breve inicial y conserva diferenciación por
-  nivel y proceso estadístico.
+- el proceso estadístico se incorpora sólo cuando es necesario para evitar una
+  colisión de nombres;
+- un remapeo sustituye el nombre breve inicial y conserva la diferenciación por
+  nivel y proceso estadístico;
+- los nombres finales se pasan a minúsculas al terminar la desambiguación. Los
+  nombres estándar NCEP se reciben en mayúsculas y las definiciones locales
+  pueden recibirse en minúsculas; la normalización final permite detectar una
+  definición local incorrecta que colisione con otra variable.
 
-Son convenciones de MetVis3D, no nombres universales GRIB2. Antes de agrupar
-mensajes se comprueba firma, centro, nivel, estadística, unidades y grilla.
-Los acumulados, máximos y mínimos exigen la misma cautela que los promedios.
+Estas convencions se tomaron del script g2ctl de NCEP, no nombres universales GRIB2. 
+Una colisión quepersista tras estas reglas detiene la conversión. La semántica 
+temporal de losacumulados, promedios, máximos y mínimos se conserva como viene 
+de la fuente; el conversor no la redefine.
 
 ## 12. Contrato de salida NetCDF
 
@@ -312,15 +348,20 @@ variables se escriben como float32 con compresión zlib y
 least_significant_digit=2; las verificaciones numéricas consideran esa
 cuantización.
 
-El NetCDF conserva firma y nombre breve WGRIB2. Cuando hay remapeo registra su
-aplicación y transformación. Hora de referencia, centro, modelo, dominio y
+El NetCDF conserva `parameter_signature`, información de centro y tablas,
+superficie y proceso estadístico. El nombre de variable y sus atributos
+describen el resultado final del remapeo. Cuando corresponde, se registra la aplicación
+del remapeo y su transformación. Hora de referencia, centro, modelo, dominio y
 convención longitudinal quedan como atributos.
 
 ## 13. Grilla, longitudes y recorte
 
-Cada mensaje declara su grilla. WGRIB2 la inspecciona y PyGRIB obtiene
-coordenadas reales. Las fuentes actuales se tratan como grillas geográficas
-rectangulares; otra proyección o geometría exige revisión previa.
+Cada mensaje declara su grilla. Por el contrato de las salidas de modelo, el
+primer mensaje representa la grilla del archivo; WGRIB2 comprueba entre
+archivos la hora de referencia, el dominio, las dimensiones y la plantilla de
+grilla. PyGRIB obtiene las coordenadas reales. Las fuentes actuales se tratan
+como grillas geográficas rectangulares; otra proyección o geometría exige
+revisión previa.
 
 El recorte se expresa como (west, south, east, north) en -180..180, debe estar
 dentro de la fuente y no puede cruzar el antimeridiano. La salida puede ordenar
