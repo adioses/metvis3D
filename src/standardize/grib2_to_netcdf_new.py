@@ -364,93 +364,95 @@ class Grib2ToNetCDF:
         # Los perfiles isobáricos se normalizan como "Isobaric Levels". Se conservan los grupos con una sola descripción vertical; 
         # los grupos no isobáricos con varias descripciones a variaciones 4D no consideradas, solo se considera variaciones Isobaricas
         groups['level_name_count'] = inventory.groupby(group_columns, sort=True)['level_name'].nunique().to_numpy()
-        groups['valid_var'] = groups['level_name_count'].eq(1)
+        groups = groups[groups['level_name_count'].eq(1)]
 
         return groups.drop(columns = ['base_var_name','message_id','level_name_count'])
 
     # ------------------------------------------------------------------
     # Construir netcdf variables 
     # ------------------------------------------------------------------
-    def _build_netcdf_variables(self) -> pd.DataFrame:
-        """Aplica remapeos y prepara las variables que se escribirán en NetCDF."""
+    @staticmethod
+    def _is_local_parameter(disciplines, categories, parameters, signature):
+        discipline, category, parameter = map(int, signature.split("-"))
+        is_local = discipline in disciplines and (
+            categories[0] <= category <= categories[1]
+            or parameters[0] <= parameter <= parameters [1]
+        )
+        return is_local
 
-        # Agrupando variables
-        variables = self._group_grib2_variables()
-        variables = variables.loc[variables["valid_var"]].copy()
 
+    def _apply_remappings(self, variables):
+        """Lee archivo YAML con los remappings, y aplica los remappings a las variables
+        modificando los datos necesarios
+        """
         with self.configuration_yml.open(encoding="utf-8") as configuration_file:
             configuration = yaml.safe_load(configuration_file)
-
+        # Leyendo grupos importantes del YAML
         local_definitions = configuration["local_definitions_reserved"]
         disciplines = local_definitions['disciplines']
         categories = local_definitions['category_range']
         parameters = local_definitions['parameter_range']
-        remappings = {} if self.center == "ncep" else configuration["remappings"].get(self.center, {})
+        self.remappings = configuration["remappings"][self.center]
 
-        # Añadiendo columnas para remaping
-        variables["factor"] = 1.0
-        variables["offset"] = 0.0
-        variables["remapping_applied"] = False
+        # Determinando si las variables son definiciones locales
+        variables['remapping_applied'] = False
+        variables['is_local'] = variables["parameter_signature"].apply(lambda x: self._is_local_parameter( disciplines, categories, parameters, x))
 
-        for variable in variables.itertuples():
-            discipline, category, parameter = map(int, variable.parameter_signature.split("-"))
-            remapping = remappings.get(variable.parameter_signature)
-            # Condicional si es parametro local
-            is_local = discipline in disciplines and (
-                categories[0] <= category <= categories[1]
-                or parameters[0] <= parameter <= parameters [1]
-            )
+        # Añadiendo los remappings
+        variables['remapping_applied'] = variables['parameter_signature'].isin(self.remappings)
+        for key, remapping in self.remappings.items():
+            id_key = variables['parameter_signature'] == key
+            old_name = variables.loc[id_key, "short_name"].iloc[0]
+            variables.loc[id_key, 'units'] = remapping['units']
+            variables.loc[id_key, 'short_name'] = remapping['name']
+            variables.loc[id_key, 'long_name'] = remapping['long_name']
+            variables.loc[id_key, "var_name"] = variables.loc[id_key, "var_name"].str.replace(old_name, remapping['name'], regex=False)
 
-            if is_local and remapping is None:
-                logger.warning(f'Parámetro local {variable.short_name}({variable.parameter_signature}) {variable.long_name}: sin remapeo, se mantendra definición NCEP')
-            if remapping is None:
-                continue
+        # Aviso de variables locales no remapeadas
+        warning_keys = variables[variables['is_local'] & ~variables['remapping_applied']]['parameter_signature'].tolist()
+        if warning_keys and self.center != 'ncep':
+            logger.warning(f'Se usara la definición NCEP para los estos parametro locales: {warning_keys}')
+        
+        return variables
 
-            output = remapping["output"]
-            variables.loc[variable.Index, "short_name"] = output["name"]
-            variables.loc[variable.Index, "units"] = output["units"]
-            variables.loc[variable.Index, "long_name"] = output["long_name"]
-            variables.loc[variable.Index, "factor"] = output.get("factor", 1.0)
-            variables.loc[variable.Index, "offset"] = output.get("offset", 0.0)
-            variables.loc[variable.Index, "remapping_applied"] = True
-            var_name = output["name"] + variable.statistical_process.replace('none','') + variable.level_suffix if variable.use_statistical else output["name"] + variable.level_suffix
-            variables.loc[variable.Index, "var_name"] = var_name
 
+    def _build_netcdf_variables(self) -> pd.DataFrame:
+        """Decide las variables se escribiran en el netCDF
+        
+        Agrupa la informacion en el GRIB2 según naming de g2ctl, luego
+        aplica remapping y finalmente filtra de acuerdo a seleccion del 
+        usuario
+        """
+        # Agrupando variables
+        raw_variables = self._group_grib2_variables()
+        variables = self._apply_remappings(raw_variables)
+    
         # Pasando a minusculas los nombres
         variables["var_name"] = variables["var_name"].str.lower()
 
-        repeated_names = variables.loc[
-            variables["var_name"].duplicated(keep=False),
-            ["var_name", "parameter_signature", "varname_key"],
-        ]
+        # Verificando si hay colisiones de nombre
+        repeated_names = variables.loc[variables['var_name'].duplicated(keep=False),['parameter_signature', 'var_name']]
         if not repeated_names.empty:
-            raise RuntimeError(f"No se pudieron distinguir las variables NetCDF: {repeated_names.to_dict('records')}")
-
+            raise RuntimeError(f"Colision de variables finales, revisar remappings: {repeated_names.to_dict('records')}")
+        
+        # Filtrar variables por seleccion del usuario
         if self.variables is not None:
-            available_variables = set(variables["var_name"])
-            for variable_name in self.variables:
-                if variable_name not in available_variables:
-                    logger.warning(f"La variable {variable_name} no está disponible en los archivos GRIB2")
-            variables = variables.loc[variables["var_name"].isin(self.variables)].copy()
+            requested = pd.Index(self.variables)
+            available = variables["var_name"]
+            missing = requested[~requested.isin(available)]
+            variables = variables.loc[available.isin(requested)].copy()
+            
+            # Detener la ejecución porque ninguna variable seleccionada esta presente
             if variables.empty:
-                raise RuntimeError(f"El filtro de variables no contiene variables disponibles para el modelo {self.model}")
+                raise RuntimeError(f'Ninguna de las variables solicitadas estan presentes en los archivos GRIB2')
+            # Aviso para variables no encontradas
+            if not missing.empty:
+                logger.warning("Variables no presentes en los GRIB2: %s", missing.tolist())
 
-        pressure_keys = variables.loc[
-            variables["is_isobaric"], "varname_key"
-        ]
-        pressure_values = self.inventory.loc[
-            self.inventory["is_isobaric"]
-            & self.inventory["varname_key"].isin(pressure_keys),
-            "pressure_level",
-        ]
-        self.pressure_levels = sorted(
-            {int(pressure_level) for pressure_level in pressure_values},
-            reverse=True,
-        )
-        self.lev_map = {
-            pressure_level: index
-            for index, pressure_level in enumerate(self.pressure_levels)
-        }
+        # Creando map de niveles isobaricos
+        if variables["is_isobaric"].any():
+            self.pressure_levels = sorted(self.inventory["pressure_level"].dropna().unique(),reverse=True)
+            self.lev_map = {pressure_level: index for index, pressure_level in enumerate(self.pressure_levels)}
 
         self.netcdf_variables = variables.reset_index(drop=True)
         self.selected_variables = set(self.netcdf_variables["var_name"])

@@ -18,16 +18,17 @@ local_definitions_reserved:
   parameter_range: [192, 254]
 
 remappings:
+  ncep: {}
   ecmwf:
     "0-6-192":
-      output:
-        name: TCDC
-        units: "%"
-        long_name: "Total cloud cover"
-        factor: 100
+      name: TCDC
+      units: "%"
+      long_name: "Total cloud cover"
+      factor: 100
+      offset: 0
     "0-1-193":
-      output:
-        name: APCP
-        units: mm
-        long_name: "Total precipitation"
-        factor: 1000
+      name: APCP
+      units: mm
+      long_name: "Total precipitation"
+      factor: 1000
+      offset: 0
