@@ -398,7 +398,7 @@ La guía registra decisiones estables y el estado conocido de la lectura GRIB2.
 Los experimentos de rendimiento, reportes fechados y planes históricos no son
 parte de su contrato.
 
-La sección de inventario se actualizará junto con Grib2ToNetCDF, los reportes y
-los scripts que dependan de sus columnas. Hasta que ese cambio sea verificado,
-la implementación vigente sigue siendo la fuente operativa para el comando y
-su parser.
+La guía y los scripts de inventario se mantienen junto con
+`Grib2ToNetCDF`. El conversor operativo implementa el inventario por etapas
+descrito aquí: validación por archivo, definición desde el primer, segundo y
+último GRIB, y asociación explícita de mensajes durante la escritura.

@@ -1,15 +1,13 @@
 # Estado del proyecto
 
-**Última actualización:** 2026-09-29
+**Última actualización:** 2026-10-08
 
 ## Resumen
 
 El proyecto se encuentra principalmente en el cierre del ítem a) de la sección
 6 de los Términos de Referencia: preparación, transformación y
-estandarización de información meteorológica. La clase `Grib2ToNetCDF` está
-implementada y sus fases técnicas fueron verificadas con GFS y ECMWF. El paso
-pendiente para cerrar este ítem es la verificación científica de los NetCDF
-generados frente a los GRIB2 de origen.
+estandarización de información meteorológica. El refactor de
+`Grib2ToNetCDF` está terminado y verificado.
 
 ## Estado frente al alcance contractual
 
@@ -22,23 +20,25 @@ generados frente a los GRIB2 de origen.
 
 ## Implementado y verificado para el ítem a)
 
-- `Grib2ToNetCDF` en `src/standardize/grib2_to_netcdf.py` genera un NetCDF
-  único por corrida desde una colección homogénea de GRIB2.
-- WGRIB2 construye el inventario completo de mensajes; PyGRIB prepara la
-  grilla y lee las matrices; NetCDF4 crea la estructura y escribe los campos.
-- El conversor valida hora de referencia, dominio y tamaño de grilla comunes;
-  organiza tiempos válidos, niveles isobáricos nativos y variables de
-  superficie o presión.
+- `Grib2ToNetCDF` genera un NetCDF único por corrida desde una colección
+  homogénea de al menos tres GRIB2 con variación temporal.
+- WGRIB2 consulta el primer mensaje de cada archivo para validar hora de
+  referencia, dominio, tamaño y plantilla de grilla. El primer, segundo y
+  último archivo definen las variables y los niveles; durante la escritura,
+  WGRIB2 vuelve a inventariar cada archivo y asocia sus mensajes con PyGRIB
+  mediante el número explícito de mensaje.
+- El conversor organiza los tiempos válidos, los niveles isobáricos nativos y
+  las variables de superficie o presión; PyGRIB prepara la grilla y lee las
+  matrices, mientras NetCDF4 crea y escribe el producto final.
 - Se implementaron remapeos de parámetros locales, selección por nombre final,
   atributos de procedencia, normalización de longitudes y recorte sin
   interpolación.
-- `scripts/report_grib2_inventory.py` genera reportes de inventario y
-  remapeos. `scripts/benchmark_gfs_grib2_to_netcdf.py` registra tiempos de
-  inventario y conversión por archivo.
-- Las corridas completas documentadas el 2026-09-23 produjeron:
-  - GFS: 129 GRIB, NetCDF seleccionado de 3.60 GiB en 29.68 min.
-  - ECMWF: 65 GRIB, nueve variables seleccionadas, NetCDF de 654 MiB en
-    5.51 min.
+- `scripts/report_grib2_inventory.py` genera reportes de las variables,
+  superficies y remapeos presentes. `scripts/benchmark_grib2_to_netcdf.py`
+  registra las etapas de validación, preparación de variables y escritura por
+  archivo.
+- Los tiempos de benchmarks anteriores se conservan como evidencia histórica,
+  pero no representan el flujo de inventario por etapas del refactor.
 
 ## Pendiente para cerrar el ítem a)
 

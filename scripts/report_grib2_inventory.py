@@ -1,4 +1,4 @@
-"""Genera un reporte Markdown del inventario WGRIB2 y sus remapeos.
+"""Genera un reporte Markdown de las variables presentes en una corrida GRIB2.
 
 Uso:
     python scripts/report_grib2_inventory.py "data/raw/ECMWF/*.grib2" \
@@ -8,38 +8,25 @@ Uso:
 
 import argparse
 import glob
-import logging
-import re
 from datetime import datetime, timezone
 from pathlib import Path
 
-from standardize.grib2_to_netcdf import Grib2ToNetCDF, logger as converter_logger
+import pandas as pd
+import yaml
+
+from standardize.grib2_to_netcdf import Grib2ToNetCDF
 
 
-class RemappingWarningCollector(logging.Handler):
-    """Conserva las firmas que el conversor advierte como locales sin remapeo."""
-
-    _SIGNATURE = re.compile(r"firma (?P<signature>\d+-\d+-\d+)")
-
-    def __init__(self) -> None:
-        super().__init__(level=logging.WARNING)
-        self.signatures: list[str] = []
-
-    def emit(self, record: logging.LogRecord) -> None:
-        """Extrae la firma de cada advertencia local emitida por el conversor."""
-
-        match = self._SIGNATURE.search(record.getMessage())
-        if match is not None:
-            self.signatures.append(match["signature"])
+GROUP_COLUMNS = ["parameter_signature", "varname_key"]
 
 
 def parse_arguments() -> argparse.Namespace:
-    """Obtiene las rutas y la identidad de la corrida que se inventariará."""
+    """Obtiene las rutas, configuración y destino del reporte."""
 
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("grib_patterns", nargs="+", help="Rutas o patrones de archivos GRIB2.")
     parser.add_argument("--center", default="ecmwf", help="Centro productor usado por los remapeos.")
-    parser.add_argument("--model", default="ecmwf", help="Identificador del modelo para el reporte.")
+    parser.add_argument("--model", default="ecmwf", help="Identificador del modelo.")
     parser.add_argument(
         "--configuration-yml",
         type=Path,
@@ -51,7 +38,7 @@ def parse_arguments() -> argparse.Namespace:
 
 
 def resolve_grib_files(grib_patterns: list[str]) -> tuple[list[Path], int]:
-    """Expande rutas GRIB y conserva sólo los tres primeros archivos ordenados."""
+    """Expande las rutas GRIB y conserva su orden temporal lexicográfico."""
 
     grib_files = sorted(
         Path(grib_file)
@@ -60,15 +47,15 @@ def resolve_grib_files(grib_patterns: list[str]) -> tuple[list[Path], int]:
     )
     if not grib_files:
         raise RuntimeError("No se encontraron archivos GRIB2 para el inventario.")
-    return grib_files[:3], len(grib_files)
+    return grib_files, len(grib_files)
 
 
-def markdown_value(value) -> str:
-    """Presenta un valor de tabla Markdown sin alterar su significado."""
+def markdown_value(value: object) -> str:
+    """Presenta valores de tablas Markdown sin alterar su significado."""
 
-    if value is None:
+    if value is None or pd.isna(value):
         return "—"
-    return str(value).replace("|", "\\|")
+    return str(value).replace("|", "\\|").replace("\n", "; ")
 
 
 def markdown_table(headers: list[str], rows: list[list[object]]) -> list[str]:
@@ -85,60 +72,108 @@ def markdown_table(headers: list[str], rows: list[list[object]]) -> list[str]:
     return lines
 
 
-def format_levels(levels) -> str:
-    """Resume niveles sin repetirlos dentro de una misma variable o firma."""
+def group_unsupported_variables(
+    inventory: pd.DataFrame, supported_variables: pd.DataFrame
+) -> pd.DataFrame:
+    """Agrupa mensajes presentes que la lógica vertical no admite para NetCDF."""
 
-    return ", ".join(str(level) for level in dict.fromkeys(levels))
+    supported_keys = supported_variables[GROUP_COLUMNS].drop_duplicates()
+    unsupported_messages = inventory.merge(
+        supported_keys,
+        on=GROUP_COLUMNS,
+        how="left",
+        indicator=True,
+    )
+    unsupported_messages = unsupported_messages.loc[
+        unsupported_messages["_merge"].eq("left_only")
+    ].drop(columns="_merge")
+    if unsupported_messages.empty:
+        return pd.DataFrame(columns=[*GROUP_COLUMNS, "level_name", "surface_value"])
+    return (
+        unsupported_messages.groupby(GROUP_COLUMNS, sort=True)
+        .agg(Grib2ToNetCDF.unique_or_join)
+        .reset_index()
+    )
 
 
-def build_variable_rows(converter: Grib2ToNetCDF) -> list[list[object]]:
-    """Resume las variables finales planeadas después de aplicar los remapeos."""
+def build_supported_rows(supported_variables: pd.DataFrame) -> list[list[object]]:
+    """Construye filas de las variables presentes que el conversor admite."""
 
-    inventory = converter.wgrib2_inventory
+    return [
+        [
+            variable.parameter_signature,
+            variable.var_name,
+            variable.units,
+            variable.long_name,
+            variable.level_name,
+            variable.surface_value,
+        ]
+        for variable in supported_variables.itertuples(index=False)
+    ]
+
+
+def build_unsupported_rows(unsupported_variables: pd.DataFrame) -> list[list[object]]:
+    """Construye filas de las variaciones verticales presentes no admitidas."""
+
     rows = []
-    for variable in converter.netcdf_variables.itertuples(index=False):
-        levels = inventory.loc[
-            inventory["var_name"] == variable.var_name, "level"
-        ].tolist()
+    for variable in unsupported_variables.itertuples(index=False):
         rows.append(
             [
-                variable.var_name,
                 variable.parameter_signature,
                 variable.short_name,
+                variable.units,
                 variable.long_name,
-                variable.output_units,
-                format_levels(levels),
-                "sí" if variable.remapping_applied else "no",
-                variable.factor if variable.remapping_applied else "—",
-                variable.offset if variable.remapping_applied else "—",
+                variable.level_name,
+                variable.surface_value,
+                "Más de un level_name para la misma firma y clave de agrupación.",
             ]
         )
     return rows
 
 
-def build_unmapped_rows(converter: Grib2ToNetCDF, warning_signatures: list[str]) -> list[list[object]]:
-    """Resume sólo las firmas para las que el conversor emitió una advertencia."""
+def build_local_rows(
+    supported_variables: pd.DataFrame,
+    configuration_yml: Path,
+    center: str,
+) -> tuple[list[list[object]], list[str]]:
+    """Lista parámetros locales y devuelve firmas que no tienen remapeo YAML."""
 
-    inventory = converter.wgrib2_inventory
+    with configuration_yml.open(encoding="utf-8") as configuration_file:
+        configuration = yaml.safe_load(configuration_file)
+    local_definition = configuration["local_definitions_reserved"]
+    remappings = configuration["remappings"][center]
+    is_local = supported_variables["parameter_signature"].apply(
+        lambda signature: Grib2ToNetCDF._is_local_parameter(
+            local_definition["disciplines"],
+            local_definition["category_range"],
+            local_definition["parameter_range"],
+            signature,
+        )
+    )
+    local_variables = supported_variables.loc[is_local]
     rows = []
-    for signature in dict.fromkeys(warning_signatures):
-        messages = inventory.loc[inventory["parameter_signature"] == signature]
-        first_message = messages.iloc[0]
+    unmapped_signatures = []
+    for variable in local_variables.itertuples(index=False):
+        remapping = remappings.get(variable.parameter_signature)
+        if remapping is None:
+            unmapped_signatures.append(variable.parameter_signature)
         rows.append(
             [
-                signature,
-                first_message.short_name,
-                first_message.description,
-                first_message.units,
-                format_levels(messages["level"].tolist()),
-                len(messages),
+                variable.parameter_signature,
+                variable.short_name if remapping is None else remapping["name"],
+                variable.long_name if remapping is None else remapping["long_name"],
+                variable.units if remapping is None else remapping["units"],
+                variable.level_name,
+                variable.statistical_process,
+                "sí" if remapping is not None else "no",
+                variable.parameter_info,
             ]
         )
-    return rows
+    return rows, list(dict.fromkeys(unmapped_signatures))
 
 
 def main() -> None:
-    """Ejecuta sólo inventario WGRIB2 y escribe su revisión científica en Markdown."""
+    """Prepara el inventario de variables sin leer matrices ni crear NetCDF."""
 
     arguments = parse_arguments()
     grib_files, available_file_count = resolve_grib_files(arguments.grib_patterns)
@@ -148,87 +183,128 @@ def main() -> None:
         center=arguments.center,
         configuration_yml=arguments.configuration_yml,
     )
-    warning_collector = RemappingWarningCollector()
-    original_level = converter_logger.level
-    converter_logger.addHandler(warning_collector)
-    converter_logger.setLevel(logging.WARNING)
-    try:
-        converter._build_inventory()
-        converter._build_netcdf_variables()
-    finally:
-        converter_logger.removeHandler(warning_collector)
-        converter_logger.setLevel(original_level)
 
-    inventory = converter.wgrib2_inventory
-    valid_times = sorted(inventory["valid_time"].unique())
-    reference_times = sorted(inventory["reference_time"].unique())
-    domains = ", ".join(inventory["domain"].drop_duplicates().tolist())
-    grid_shapes = ", ".join(
-        f"{row.nx} × {row.ny}"
-        for row in inventory[["nx", "ny"]].drop_duplicates().itertuples(index=False)
+    # El refactor valida la corrida completa e identifica sus variables sin
+    # decodificar matrices meteorológicas ni crear un NetCDF.
+    converter._validate_domain_times()
+    converter._get_variable_inventory()
+    supported_variables = converter._group_grib2_variables()
+    unsupported_variables = group_unsupported_variables(
+        converter.inventory, supported_variables
     )
-    variable_rows = build_variable_rows(converter)
-    unmapped_rows = build_unmapped_rows(converter, warning_collector.signatures)
 
+    supported_rows = build_supported_rows(supported_variables)
+    unsupported_rows = build_unsupported_rows(unsupported_variables)
+    local_rows, unmapped_signatures = build_local_rows(
+        supported_variables,
+        arguments.configuration_yml,
+        converter.center,
+    )
+
+    sampled_files = [path.name for path in converter.grib_files[:2] + converter.grib_files[-1:]]
     lines = [
         f"# Inventario GRIB2 — {converter.center}-{converter.model}",
         "",
-        "Reporte de cabeceras WGRIB2 y planificación de remapeos. No lee matrices "
-        "GRIB ni crea NetCDF.",
+        "Este reporte usa el inventario de variables del conversor. No lee matrices "
+        "meteorológicas ni crea un NetCDF.",
         "",
         f"Generado: {datetime.now(timezone.utc).isoformat()}",
         "",
         "## Cobertura inventariada",
         "",
-        f"- Archivos encontrados: {available_file_count}",
-        f"- Archivos inventariados: {len(grib_files)} primeros en orden ascendente",
-        f"- Mensajes GRIB2: {len(inventory)}",
-        f"- Hora de referencia: {', '.join(value.isoformat() for value in reference_times)}",
-        f"- Tiempos válidos: {valid_times[0].isoformat()} a {valid_times[-1].isoformat()} ({len(valid_times)} tiempos)",
-        f"- Dominio WGRIB2: {domains}",
-        f"- Resolución: {grid_shapes}",
+        f"- Archivos encontrados y validados: {available_file_count}",
+        "- Archivos usados para identificar variables: " + ", ".join(sampled_files),
+        f"- Hora de inicialización: {converter.forecast_date.isoformat()}",
+        "- Tiempos válidos: "
+        f"{converter.time_list[0].isoformat()} a {converter.time_list[-1].isoformat()} "
+        f"({len(converter.time_list)} tiempos)",
+        f"- Dominio WGRIB2: {converter.domain}",
+        f"- Resolución: {converter.nx} × {converter.ny}",
+        f"- Plantilla de grilla: {converter.grid_template}",
         "",
-        "## Variables finales planeadas",
+        "## Variables presentes y soportadas",
+        "",
+        "Estas variables se identifican mediante la agrupación g2ctl del conversor "
+        "y pueden representarse con la estructura NetCDF canónica.",
         "",
     ]
     lines.extend(
         markdown_table(
             [
-                "Variable final",
-                "Firma",
-                "Nombre WGRIB2",
-                "Long name",
+                "Parameter signature",
+                "Variable g2ctl",
                 "Unidades",
-                "Niveles",
-                "Remapeo",
-                "Factor",
-                "Offset",
+                "Nombre largo",
+                "Nivel",
+                "Surface values",
             ],
-            variable_rows,
+            supported_rows,
         )
     )
-    lines.extend(["", "## Parámetros locales sin remapeo aprobado", ""])
-    if unmapped_rows:
+    lines.extend(["", "## Variables presentes no soportadas", ""])
+    lines.extend(
+        [
+            "El NetCDF canónico admite una dimensión vertical 4D sólo para "
+            "superficies isobáricas (`surface_type == 100`). Los campos con una "
+            "única superficie vertical no isobárica se representan en 3D. Las "
+            "variaciones que requieren múltiples niveles verticales no isobáricos, "
+            "como las capas de suelo, no están soportadas.",
+            "",
+        ]
+    )
+    if unsupported_rows:
         lines.extend(
             markdown_table(
-                ["Firma", "Nombre WGRIB2", "Descripción", "Unidades", "Niveles", "Mensajes"],
-                unmapped_rows,
+                [
+                    "Parameter signature",
+                    "Short name",
+                    "Unidades",
+                    "Nombre largo",
+                    "Level names encontrados",
+                    "Surface values",
+                    "Motivo",
+                ],
+                unsupported_rows,
             )
         )
-        signatures = " ".join(row[0] for row in unmapped_rows)
+    else:
+        lines.append("No se identificaron variaciones verticales no soportadas.")
+    lines.extend(["", "## Parámetros locales", ""])
+    if local_rows:
+        lines.extend(
+            markdown_table(
+                [
+                    "Parameter signature",
+                    "Short name",
+                    "Nombre largo",
+                    "Unidades",
+                    "Nivel",
+                    "Proceso estadístico",
+                    "Remapeado",
+                    "Parameter info",
+                ],
+                local_rows,
+            )
+        )
+    else:
+        lines.append("No se identificaron parámetros locales en las variables soportadas.")
+
+    if converter.center == "ecmwf" and unmapped_signatures:
+        signatures = " ".join(unmapped_signatures)
         lines.extend(
             [
                 "",
                 "## Investigación de remapeos",
                 "",
-                "Las siguientes firmas fueron emitidas por la advertencia del conversor. "
-                "Para consultar los candidatos ECMWF definidos por ecCodes:",
+                "Las siguientes firmas locales no tienen un remapeo YAML aprobado. "
+                "Para consultar candidatos ECMWF definidos por ecCodes:",
                 "",
-                f"```bash\npython scripts/inspect_ecmwf_parameter.py {signatures} --output outputs/grib2-analysis/ecmwf-parameters.md\n```",
+                "```bash",
+                "python scripts/inspect_ecmwf_parameter.py "
+                f"{signatures} --output outputs/grib2-analysis/ecmwf-parameters.md",
+                "```",
             ]
         )
-    else:
-        lines.append("No se emitieron advertencias de parámetros locales sin remapeo.")
 
     arguments.output.parent.mkdir(parents=True, exist_ok=True)
     arguments.output.write_text("\n".join(lines) + "\n", encoding="utf-8")

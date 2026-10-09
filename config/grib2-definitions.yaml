@@ -17,6 +17,8 @@ local_definitions_reserved:
   category_range: [192, 254]
   parameter_range: [192, 254]
 
+# Cada regla de remapeo exige: (name, units, long_name, factor, offset). 
+# Una regla incompleta o que no pueda aplicarse detiene la conversión.
 remappings:
   ncep: {}
   ecmwf:

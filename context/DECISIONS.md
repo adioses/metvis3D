@@ -78,7 +78,7 @@ válidos de los archivos, sin completar ni inferir plazos faltantes.
 
 ## D-005 — Remapeo y selección de variables
 
-**Fecha:** 2026-09-23  
+**Fecha:** 2026-09-23, actualizada 2026-10-08
 **Decisión:** los parámetros locales se remapean únicamente mediante reglas
 explícitas de `config/grib2-definitions.yaml`. La selección opcional usa los
 nombres finales resultantes de esos remapeos y se configura por modelo.
@@ -86,8 +86,9 @@ nombres finales resultantes de esos remapeos y se configura por modelo.
 **Motivo:** los códigos locales no son homogéneos entre centros productores;
 las transformaciones deben ser explícitas y rastreables.
 
-**Impacto:** una regla puede definir nombre, unidades, `factor`, `offset` y
-`long_name`. Los atributos de remapeo se escriben en el NetCDF. Un parámetro
+**Impacto:** cada regla define obligatoriamente nombre, unidades, `factor`,
+`offset` y `long_name`. Los atributos de remapeo se escriben en el NetCDF. Una
+regla incompleta o que no pueda aplicarse detiene la conversión. Un parámetro
 local sin regla conserva su definición NCEP y emite una advertencia.
 
 ## D-006 — Coordenadas, recorte y conservación de valores
