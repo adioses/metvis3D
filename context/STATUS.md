@@ -14,7 +14,7 @@ estandarización de información meteorológica. El refactor de
 | Ítem | Estado | Situación actual |
 |---|---|---|
 | a) Preparación, transformación y estandarización | En cierre | Conversor, configuraciones, reportes y benchmarks implementados; falta validación científica documentada. |
-| b) Visualizaciones y animaciones | Pendiente | Se abordará después de cerrar la estandarización y definir los productos piloto. |
+| b) Visualizaciones y animaciones | En exploración | Se preparó una primera escena estática de topografía para Sudamérica; falta validarla visualmente e integrar campos atmosféricos VTS. |
 | c) Plataforma web piloto | En espera | Depende de los productos que se generen y de las condiciones del servidor final. |
 | d) Integración, operación y documentación | Inicial | Existen el entorno de desarrollo y la organización del proyecto; la integración completa depende de los ítems anteriores. |
 
@@ -52,9 +52,24 @@ estandarización de información meteorológica. El refactor de
   disponibles en una corrida, como las advertencias actuales de `prmslmsl` en
   la selección ECMWF.
 
+## Exploración iniciada para el ítem b)
+
+- Se definió una escena estática inicial para Sudamérica con el GeoTIFF global
+  GMTED2010 `mn30`, proyección Lambert Conformal Conic, malla de 10 km,
+  océano plano y exageración vertical de 12 veces.
+- `scripts/prepare_static_scene.py` prepara el DEM proyectado y una malla VTS
+  estática; `paraview/templates/render_static_terrain.py` la abre y colorea
+  dentro de ParaView.
+- La primera malla generada tiene 1 670 × 1 110 puntos y se conserva como
+  producto descartable en `paraview/render_data/static/south_america/`.
+- Se generó una primera prueba de chorro para el análisis GFS de 2026-09-03
+  00Z: isosuperficie única de 30 m/s entre 500 y 50 hPa, con 241 × 175 × 11
+  puntos y la misma Lambert/exageración vertical de la topografía. La plantilla
+  combinada fue validada mediante ParaView; queda pendiente ajustar su lectura
+  visual antes de convertirla en una plantilla de animación.
+
 ## Siguiente actividad
 
-Acordar el protocolo de verificación científica y aplicar primero casos
-representativos de GFS y ECMWF. Con los resultados documentados se podrá
-declarar cerrado el ítem a) e iniciar la definición del primer producto de
-visualización.
+Validar visualmente la escena estática en ParaView y, en paralelo, acordar el
+protocolo de verificación científica para GFS y ECMWF. La escena validada será
+el contexto común para la primera plantilla atmosférica VTS.

@@ -119,3 +119,25 @@ para revisar una conversión sin perder la estructura científica del producto.
 **Impacto:** los valores están sujetos a la cuantización decimal configurada.
 Cada variable conserva unidades, `long_name` y metadatos de procedencia; las
 verificaciones científicas deben considerar dicha cuantización.
+
+## D-008 — Escena estática inicial de topografía sudamericana
+
+**Fecha:** 2026-10-09
+**Decisión:** la primera escena geográfica reutilizable emplea el GeoTIFF
+global GMTED2010 `mn30` como fuente de topografía. Cubre
+`(west=-130, south=-56, east=-10, north=30)`, usa Lambert Conformal Conic con
+metros como coordenadas horizontales, una malla de renderizado de 10 km y
+exageración vertical de 12 veces. El océano se representa como un plano azul a
+0 m; el relieve usa una paleta hipsométrica configurable.
+
+**Motivo:** la resolución de 30 segundos de arco es suficiente para el contexto
+continental y permite una malla estable para animaciones Full HD. Lambert
+Conformal Conic evita la distorsión marcada de Web Mercator sobre el sur de
+Sudamérica y mantiene coordenadas métricas compatibles con la altura de los
+campos atmosféricos.
+
+**Impacto:** `config/scenes/south_america.yaml` define el dominio, proyección,
+resolución, exageración y paleta. `scripts/prepare_static_scene.py` produce un
+GeoTIFF Lambert y una malla VTS descartables en
+`paraview/render_data/static/south_america/`; los VTS atmosféricos posteriores
+deben usar la misma proyección y exageración vertical dentro de esta escena.

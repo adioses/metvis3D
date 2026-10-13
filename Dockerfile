@@ -7,6 +7,10 @@ RUN micromamba create --yes --name metvis3d --file /tmp/environment.yml \
     && micromamba clean --all --yes
 
 ENV PATH=/opt/conda/envs/metvis3d/bin:$PATH
+RUN printf '%s\n' \
+    'eval "$(micromamba shell hook --shell bash)"' \
+    'micromamba activate metvis3d' \
+    >> /home/mambauser/.bashrc
 WORKDIR /workspace
 
 COPY --chown=$MAMBA_USER:$MAMBA_USER pyproject.toml README.md ./

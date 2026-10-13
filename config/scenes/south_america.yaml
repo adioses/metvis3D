@@ -1,0 +1,29 @@
+name: south_america
+
+bounds:
+  west: -130.0
+  south: -56.0
+  east: -10.0
+  north: 30.0
+
+projection:
+  name: Lambert Conformal Conic for South America
+  proj4: +proj=lcc +lat_1=-5 +lat_2=-42 +lat_0=-15 +lon_0=-70 +datum=WGS84 +units=m +no_defs
+
+topography:
+  source_geotiff: assets/dem/gmted2010/geotiff/gmted2010_mn30_global.tif
+  render_resolution_m: 2500.0
+  vertical_exaggeration: 120.0
+  sea_level_m: 0.0
+
+style:
+  palette:
+    - [-430.0, "#17365d"]
+    - [0.0, "#2f6fa4"]
+    - [1.0, "#4f7f3f"]
+    - [250.0, "#7fab4d"]
+    - [1000.0, "#bec46c"]
+    - [2000.0, "#ca9252"]
+    - [3500.0, "#8f5e40"]
+    - [5000.0, "#e6dcc5"]
+    - [6000.0, "#ffffff"]
