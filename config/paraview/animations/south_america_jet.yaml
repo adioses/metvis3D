@@ -1,0 +1,59 @@
+# Animación ParaView: corriente de chorro sobre Sudamérica.
+name: south_america_jet
+scene: config/paraview/scenes/south_america.yaml
+
+layers:
+  terrain:
+    enabled: true
+    type: terrain
+
+  jet:
+    enabled: true
+    type: wind_speed_isosurface
+    pressure:
+      bottom_hpa: 500.0
+      top_hpa: 50.0
+    variables:
+      wind_u: ugrdprs
+      wind_v: vgrdprs
+      vertical_coordinate: hgtprs
+    vertical_coordinate:
+      units: gpm
+      missing_values:
+        policy: fill_isolated_orthogonal_mean
+        max_affected_times: 10
+        max_affected_levels: 10
+    preparation:
+      horizontal_sample_rate: 2
+    isosurface:
+      value_m_s: 50.0
+      color: "#fa871f"
+      opacity: 0.50
+    volume_outline:
+      enabled: true
+      color: "#dbe7f5"
+      opacity: 0.65
+      line_width_px: 1.5
+
+# La geometría vertical conserva la altura geopotencial del modelo: Z = hgtprs × factor.
+vertical_exaggeration: 60.0
+
+timeline:
+  selection: all_available
+
+# Valores iniciales en metros Lambert Conformal Conic. Se ajustan en ParaView y
+# se conservan aquí para que cada corrida mantenga el mismo encuadre.
+camera:
+  position: [48303.34042612239, -15846396.274189524, 10143143.39714132]
+  focal_point: [142531.34614618373, -870453.6900156611, -439271.116035454]
+  view_up: [0.009343740788542835, 0.5770249488742223, 0.8166730697682995]
+  parallel_projection: false
+  parallel_scale: 10173845.834121529
+  view_angle_degrees: 30.0
+
+output:
+  width_px: 1920
+  height_px: 1080
+  frames_per_second: 10
+  video_codec: libx264
+  pixel_format: yuv420p

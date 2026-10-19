@@ -7,35 +7,59 @@ visualizaciones y animaciones 3D reproducibles.
 
 - Un NetCDF CF por modelo y corrida.
 - Variables de superficie: `(time, latitude, longitude)`.
-- Variables atmosféricas: `(time, pressure, latitude, longitude)`.
+- Variables atmosféricas: `(time, lev, latitude, longitude)`.
 - Los niveles de presión se conservan tal como los entrega cada modelo.
 - Jupyter Lab sirve para ajustar configuraciones; la ejecución repetible se
   realiza mediante comandos Python y archivos YAML.
-- ParaView y Blender son motores externos llamados mediante plantillas.
+- ParaView y Met.3D generan videos desde configuraciones y scripts reproducibles.
 
 ## Estructura
 
 ```text
-config/       Configuración versionada de modelos, variables y productos.
-src/          Paquete Python `metvis3d`.
+config/       Configuración versionada de conversión, análisis y animaciones.
+src/          Paquetes Python de estandarización y visualización.
 notebooks/    Exploración y ajuste visual; no contiene lógica operativa única.
-paraview/     Plantillas y scripts de render ParaView.
-blender/      Plantillas y scripts de acabado Blender.
+met3D/        Sesión y plantillas nativas de Met.3D.
+paraview/     Scripts de render ParaView y datos temporales descartables.
 assets/       DEM, límites y recursos institucionales.
 data/         Datos de trabajo no versionados.
 outputs/      PNG, videos y productos publicados no versionados.
-tests/        Pruebas automatizadas.
 docs/         Especificaciones técnicas.
 ```
 
-Los datos originales de prueba permanecen en `../dev/source`. No deben
-copiarse al repositorio: use enlaces simbólicos o rutas configuradas. Los
-índices `.idx` de cfgrib se crearán junto a cada GRIB original.
+Docker Compose monta los GRIB2 originales desde `../source` como `data/raw` en
+modo de sólo lectura. No deben copiarse, moverse ni modificarse desde los
+procesos del proyecto. Los índices `.idx` de cfgrib se crean junto a cada GRIB
+original.
 
 `paraview/render_data/` contiene datos temporales preparados exclusivamente
-para ParaView. `paraview/render_cache/` contiene vistas previas o fotogramas
-durante el ajuste de una plantilla. Ambos directorios son descartables; una
-plantilla aprobada renderiza directamente hacia `outputs/`.
+para ParaView. `paraview/render_cache/` contiene los fotogramas de trabajo.
+Ambos directorios son descartables; los videos aprobados se escriben en
+`outputs/`.
+
+Las guías operativas para generar videos y ajustar cámaras están en:
+
+- `docs/met3d.md`
+- `docs/paraview.md`
+
+## Conversión GRIB2 a NetCDF
+
+El lanzador operativo recibe los GRIB2 de una única corrida, el YAML del modelo
+y el centro productor. Lee de la configuración las variables seleccionadas y
+la convención longitudinal, y produce un único NetCDF bajo
+`data/standardized/`.
+
+```bash
+conda run -n metvis3d python scripts/convert_grib2_to_netcdf.py \
+  "data/raw/GFS/*.grib2" \
+  --model-configuration config/models/gfs.yaml \
+  --center ncep \
+  --area -130 -56 -10 30
+```
+
+El recorte es opcional; omita `--area` para conservar el dominio completo. El
+proceso se detiene si los GRIB2 no corresponden a una misma corrida o si el
+NetCDF final ya existe.
 
 ## Entorno
 
@@ -50,7 +74,7 @@ pip install -e .
 Docker Compose es el entorno local de desarrollo. Ejecuta Conda mediante
 Micromamba dentro de una imagen Linux y monta `../source` como `data/raw` en
 modo solo lectura. El HPC ejecutará el mismo `environment.yml` con Conda y los
-binarios instalados de ParaView, Blender y FFmpeg.
+binarios instalados de ParaView, Met.3D y FFmpeg.
 
 ## Desarrollo local con Docker
 

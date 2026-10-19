@@ -1,0 +1,26 @@
+; Marco, ejes y niveles de presión de la escena completa.
+[FileFormat]
+met3dVersion=2.0.0b11/Oct26
+
+[MActor]
+actorName={{ scene.title }} scene volume
+properties\actor_enabled=true
+properties\bounding_box=1
+properties\display_units=true
+properties\frame_thickness=0.1
+properties\label_properties\bounding_box=true
+properties\label_properties\label_size=25
+properties\label_properties\labels_enabled=true
+properties\tick_levels="1000.,900.,800.,700.,600.,500.,400.,300.,250.,200."
+properties\tick_spacing=2
+properties\tick_units=0
+properties\wire_frame_enabled=false
+
+[Metadata]
+actorConfigType=Volume bounding box
+
+[components]
+Bounding%20box\bottomPressure_hPa={{ scene.view_pressure.bottom_hpa }}
+Bounding%20box\horizontal2DCoords={{ scene.area.horizontal2d_coords }}
+Bounding%20box\topPressure_hPa={{ scene.view_pressure.top_hpa }}
+Bounding%20box\useBoundingBox={{ scene.bounding_boxes.scene }}

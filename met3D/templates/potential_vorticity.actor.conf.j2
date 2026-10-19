@@ -1,0 +1,46 @@
+; Isosuperficie de PV baroclínica calculada por Met.3D desde tmpprs, ugrdprs y vgrdprs.
+[FileFormat]
+met3dVersion=2.0.0b11/Oct26
+
+[MActor]
+actorName={{ scene.title }} potential vorticity
+header\NWPMultiVarActor\numVariables=1
+header\NWPVolumeRaycasterActor\numIsoValues=1
+header\Variable_0\dataLoaderID={{ dataset_name }} derived
+header\Variable_0\ensembleUtilizedMembers=0
+header\Variable_0\groupDefinedByUUID=true
+header\Variable_0\levelType=1
+header\Variable_0\uuid=@Variant(\0\0\0\x7f\0\0\0\x6QUuid\0\x8V<A\r\xb5J\x80\xb5\xc\xe1G_\x90lE)
+header\Variable_0\variableName=potential_vorticity_baroclinic_metpy
+properties\account_for_earth_curvature=true
+properties\actor_enabled=true
+properties\actor_variables\%7B08563c41-0db5-4a80-b50c-e1475f906c45%7D\data_source_id={{ dataset_name }} derived
+properties\actor_variables\%7B08563c41-0db5-4a80-b50c-e1475f906c45%7D\init_time_control_index=1
+properties\actor_variables\%7B08563c41-0db5-4a80-b50c-e1475f906c45%7D\long_name="potential_vorticity_baroclinic_metpy, computed from temperature and u/v"
+properties\actor_variables\%7B08563c41-0db5-4a80-b50c-e1475f906c45%7D\selected_members=0
+properties\actor_variables\%7B08563c41-0db5-4a80-b50c-e1475f906c45%7D\valid_time_control_index=2
+properties\actor_variables\%7B08563c41-0db5-4a80-b50c-e1475f906c45%7D\var_display_name=potential_vorticity_baroclinic_metpy (Pressure Levels)
+properties\actor_variables\%7B08563c41-0db5-4a80-b50c-e1475f906c45%7D\var_name_level_type=potential_vorticity_baroclinic_metpy (Pressure Levels)
+properties\bounding_box={{ potential_vorticity.bounding_box_index }}
+properties\bounding_box_enabled=true
+properties\cast_shadows=false
+properties\iso_values\Isovalue%20%231\colour_mode=0
+properties\iso_values\Isovalue%20%231\constant_colour=@Variant(\0\0\0\x43\x1\xa6\xa6\x75\x75\x5f\x5f\xd6\xd6\0\0)
+properties\iso_values\Isovalue%20%231\enabled=true
+properties\iso_values\Isovalue%20%231\isovalue={{ pv_isovalue_si }}
+properties\iso_values\Isovalue%20%231\isovalue_sig_digits=3
+properties\iso_values\Isovalue%20%231\isovalue_step=1e-07
+properties\observed_var=@Variant(\0\0\0\x7f\0\0\0\x6QUuid\0\x8V<A\r\xb5J\x80\xb5\xc\xe1G_\x90lE)
+properties\ray_step_size=0.1
+properties\receive_shadows=false
+properties\render_mode=0
+properties\wire_frame_enabled=false
+
+[Metadata]
+actorConfigType=Volume raycaster
+
+[components]
+Bounding%20box\bottomPressure_hPa={{ potential_vorticity.pressure.bottom_hpa }}
+Bounding%20box\horizontal2DCoords={{ scene.area.horizontal2d_coords }}
+Bounding%20box\topPressure_hPa={{ potential_vorticity.pressure.top_hpa }}
+Bounding%20box\useBoundingBox={{ scene.bounding_boxes.potential_vorticity }}

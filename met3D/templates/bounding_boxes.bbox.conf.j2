@@ -1,0 +1,21 @@
+; Cajas generadas desde el área YAML como QRectF nativo de Qt.
+; La codificación @Variant pertenece sólo al archivo runtime, no al YAML.
+[BoundingBoxes]
+; Contexto común: mapa base, marco y topografía de presión.
+boundingBox\1\name={{ scene.bounding_boxes.scene }}
+boundingBox\1\topPressure_hPa={{ scene.view_pressure.top_hpa }}
+boundingBox\1\bottomPressure_hPa={{ scene.view_pressure.bottom_hpa }}
+boundingBox\1\horizontal2DCoords={{ scene.area.horizontal2d_coords }}
+
+; Cada objeto 3D tiene su propio recorte vertical y comparte el área de escena.
+{% for bounding_box in object_bounding_boxes %}
+boundingBox\{{ bounding_box.index }}\name={{ bounding_box.name }}
+boundingBox\{{ bounding_box.index }}\topPressure_hPa={{ bounding_box.pressure.top_hpa }}
+boundingBox\{{ bounding_box.index }}\bottomPressure_hPa={{ bounding_box.pressure.bottom_hpa }}
+boundingBox\{{ bounding_box.index }}\horizontal2DCoords={{ scene.area.horizontal2d_coords }}
+
+{% endfor %}
+boundingBox\size={{ object_bounding_boxes | length + 1 }}
+
+[FileFormat]
+met3dVersion=2.0.0b11/Oct26

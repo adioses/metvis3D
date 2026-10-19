@@ -11,11 +11,14 @@ standardization:
 selected_variables:
   - ugrdprs
   - vgrdprs
+  - vvelprs
   - tmpprs
   - rhprs
+  - spfhprs
   - hgtprs
   - tmp2m
   - ugrd10m
   - vgrd10m
   - prmslmsl
+  - pressfc
   - apcpsfc

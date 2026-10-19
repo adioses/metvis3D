@@ -1,0 +1,52 @@
+# Producto Met.3D: corriente de chorro sobre Sudamérica.
+# El NetCDF se recibe por línea de comandos; no se fija una corrida aquí.
+name: jet
+scene: config/met3d/scenes/south_america.yaml
+
+# Identificadores estables para cualquier modelo y fecha estandarizados.
+dataset_name: standardized_data
+session_file: met3D/sessions/south_america_dana_base.session.config
+
+variables:
+  wind_u: ugrdprs
+  wind_v: vgrdprs
+  surface_pressure: pressfc
+
+objects:
+  # Sitúa la isosuperficie sobre la presión de superficie de cada plazo.
+  surface_pressure:
+    enabled: true
+
+  jet:
+    enabled: true
+    pressure:
+      # Debe permanecer dentro del volumen estático de escena: 1045--200 hPa.
+      bottom_hpa: 500.0
+      top_hpa: 100.0
+    # Umbral de rapidez de viento en m s-1. Puede cambiarse a 30, 40, etc.
+    wind_speed_isosurface_m_s: 50.0
+
+# Orientación inicial del producto. Se puede ajustar independientemente de DANA.
+camera:
+  origin:
+    longitude: -30.441743850708008
+    latitude: -115.15374755859375
+    world_z: 99.71694946289062
+  y_axis:
+    longitude: -0.2489262819290161
+    latitude: 0.6657854318618774
+    world_z: 0.7033936381340027
+  z_axis:
+    longitude: -0.24633359909057617
+    latitude: 0.6588489413261414
+    world_z: -0.710798442363739
+
+timeline:
+  selection: all_available
+
+output:
+  width_px: 1920
+  height_px: 1080
+  frames_per_second: 10
+  video_codec: libx264
+  pixel_format: yuv420p

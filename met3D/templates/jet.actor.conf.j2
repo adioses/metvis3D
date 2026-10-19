@@ -1,0 +1,56 @@
+; Isosuperficie de rapidez de viento derivada por Met.3D desde ugrdprs y vgrdprs.
+[FileFormat]
+met3dVersion=2.0.0b11/Oct26
+
+[MActor]
+actorName={{ scene.title }} jet
+header\NWPMultiVarActor\numVariables=1
+header\NWPVolumeRaycasterActor\numIsoValues=1
+header\Variable_0\dataLoaderID={{ dataset_name }} derived
+header\Variable_0\ensembleUtilizedMembers=0
+header\Variable_0\groupDefinedByUUID=true
+header\Variable_0\levelType=1
+header\Variable_0\uuid=@Variant(\0\0\0\x7f\0\0\0\x6QUuid\0lj\xbc\asxD\x89\x80\xcc\xfb}Quc\x13)
+header\Variable_0\variableName=wind_speed
+properties\account_for_earth_curvature=true
+properties\actor_enabled=true
+properties\actor_variables\%7B6c6abc07-7378-4489-80cc-fb7d51756313%7D\SmoothFilter\boundary_conditions=0
+properties\actor_variables\%7B6c6abc07-7378-4489-80cc-fb7d51756313%7D\SmoothFilter\recompute_on_property_change=false
+properties\actor_variables\%7B6c6abc07-7378-4489-80cc-fb7d51756313%7D\SmoothFilter\smooth_mode=0
+properties\actor_variables\%7B6c6abc07-7378-4489-80cc-fb7d51756313%7D\VerticalRegrid\regrid_mode=no regrid
+properties\actor_variables\%7B6c6abc07-7378-4489-80cc-fb7d51756313%7D\data_source_id={{ dataset_name }} derived
+properties\actor_variables\%7B6c6abc07-7378-4489-80cc-fb7d51756313%7D\init_time_control_index=1
+properties\actor_variables\%7B6c6abc07-7378-4489-80cc-fb7d51756313%7D\long_name="wind_speed, computed from u/v"
+properties\actor_variables\%7B6c6abc07-7378-4489-80cc-fb7d51756313%7D\selected_members=0
+properties\actor_variables\%7B6c6abc07-7378-4489-80cc-fb7d51756313%7D\valid_time_control_index=2
+properties\actor_variables\%7B6c6abc07-7378-4489-80cc-fb7d51756313%7D\var_display_name=wind_speed (Pressure Levels)
+properties\actor_variables\%7B6c6abc07-7378-4489-80cc-fb7d51756313%7D\var_name_level_type=wind_speed (Pressure Levels)
+properties\bounding_box={{ jet.bounding_box_index }}
+properties\bounding_box_enabled=true
+properties\cast_shadows=false
+properties\dithering=true
+properties\dithering_strength=1
+properties\interaction_isosurface_bisection_steps=4
+properties\interaction_ray_step_size=0.2
+properties\iso_values\Isovalue%20%231\colour_mode=0
+properties\iso_values\Isovalue%20%231\constant_colour=@Variant(\0\0\0\x43\x1\xa6\xa6\xff\xff\x8c\x8c\0\0)
+properties\iso_values\Isovalue%20%231\enabled=true
+properties\iso_values\Isovalue%20%231\isovalue={{ jet.wind_speed_isosurface_m_s }}
+properties\iso_values\Isovalue%20%231\isovalue_sig_digits=3
+properties\iso_values\Isovalue%20%231\isovalue_step=1
+properties\isosurface_bisection_steps=4
+properties\observed_var=@Variant(\0\0\0\x7f\0\0\0\x6QUuid\0lj\xbc\asxD\x89\x80\xcc\xfb}Quc\x13)
+properties\ray_step_size=0.1
+properties\receive_shadows=false
+properties\received_shadow_opacity=0
+properties\render_mode=0
+properties\wire_frame_enabled=false
+
+[Metadata]
+actorConfigType=Volume raycaster
+
+[components]
+Bounding%20box\bottomPressure_hPa={{ jet.pressure.bottom_hpa }}
+Bounding%20box\horizontal2DCoords={{ scene.area.horizontal2d_coords }}
+Bounding%20box\topPressure_hPa={{ jet.pressure.top_hpa }}
+Bounding%20box\useBoundingBox={{ scene.bounding_boxes.jet }}

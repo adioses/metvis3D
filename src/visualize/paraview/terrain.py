@@ -169,26 +169,68 @@ def write_vts(output_file: Path, elevation_m: np.ndarray, geotransform: tuple[fl
         destination.write(b"</AppendedData>\n</VTKFile>\n")
 
 
-def prepare_static_scene(project_root: Path, configuration_file: Path, overwrite: bool = False) -> dict[str, Path]:
+def terrain_matches_scene(metadata_file: Path, scene: dict, vertical_exaggeration: float) -> bool:
+    """Comprueba si el terreno preparado corresponde exactamente a la escena solicitada."""
+
+    if not metadata_file.exists():
+        return False
+
+    with metadata_file.open(encoding="utf-8") as source:
+        metadata = json.load(source)
+
+    topography = scene["topography"]
+    return (
+        metadata.get("scene") == scene["name"]
+        and metadata.get("bounds_wgs84") == scene["bounds"]
+        and metadata.get("projection") == scene["projection"]
+        and metadata.get("source_geotiff") == topography["source_geotiff"]
+        and metadata.get("render_resolution_m") == topography["render_resolution_m"]
+        and metadata.get("vertical_exaggeration") == vertical_exaggeration
+        and metadata.get("sea_level_m") == topography["sea_level_m"]
+    )
+
+
+def prepare_static_scene(
+    project_root: Path,
+    configuration_file: Path,
+    overwrite: bool = False,
+    vertical_exaggeration: float | None = None,
+    reuse_matching_terrain: bool = False,
+) -> dict[str, Path]:
     """Ejecuta la preparación completa del relieve estático de una escena."""
 
     scene = load_scene_configuration(configuration_file)
-    scene_directory = project_root / "paraview" / "render_data" / "static" / scene["name"]
-    projected_dem_file = scene_directory / "terrain_lcc_10km.tif"
+    scene_directory = project_root / "paraview" / "render_data" / scene["name"] / "terrain"
+    projected_dem_file = scene_directory / "terrain_projected.tif"
     terrain_vts_file = scene_directory / "terrain.vts"
     metadata_file = scene_directory / "terrain_metadata.json"
+
+    if vertical_exaggeration is None:
+        vertical_exaggeration = scene["topography"]["vertical_exaggeration"]
 
     existing_outputs = [
         output_file
         for output_file in (projected_dem_file, terrain_vts_file, metadata_file)
         if output_file.exists()
     ]
+    if reuse_matching_terrain and all(
+        output_file.exists() for output_file in (projected_dem_file, terrain_vts_file, metadata_file)
+    ) and terrain_matches_scene(metadata_file, scene, vertical_exaggeration):
+        return {
+            "projected_dem": projected_dem_file,
+            "terrain_vts": terrain_vts_file,
+            "metadata": metadata_file,
+        }
     if existing_outputs and not overwrite:
         existing_names = ", ".join(output_file.name for output_file in existing_outputs)
         raise RuntimeError(
             "Ya existe una escena estática preparada "
             f"({existing_names}). Use --overwrite tras revisar los cambios."
         )
+
+    if existing_outputs:
+        for output_file in existing_outputs:
+            output_file.unlink()
 
     prepare_projected_dem(project_root, scene, projected_dem_file)
     projected_dem = gdal.Open(str(projected_dem_file), gdal.GA_ReadOnly)
@@ -201,7 +243,7 @@ def prepare_static_scene(project_root: Path, configuration_file: Path, overwrite
         elevation_m,
         projected_dem.GetGeoTransform(),
         scene["topography"]["sea_level_m"],
-        scene["topography"]["vertical_exaggeration"],
+        vertical_exaggeration,
     )
     metadata = {
         "scene": scene["name"],
@@ -209,7 +251,7 @@ def prepare_static_scene(project_root: Path, configuration_file: Path, overwrite
         "projection": scene["projection"],
         "source_geotiff": scene["topography"]["source_geotiff"],
         "render_resolution_m": scene["topography"]["render_resolution_m"],
-        "vertical_exaggeration": scene["topography"]["vertical_exaggeration"],
+        "vertical_exaggeration": vertical_exaggeration,
         "sea_level_m": scene["topography"]["sea_level_m"],
         "grid_dimensions": [int(projected_dem.RasterXSize), int(projected_dem.RasterYSize)],
         "palette": scene["style"]["palette"],

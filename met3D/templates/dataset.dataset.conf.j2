@@ -1,0 +1,22 @@
+; Dataset temporal generado para una corrida NetCDF estandarizada.
+; Los identificadores de variables se mantienen constantes entre modelos.
+[FileFormat]
+met3dVersion=2.0.0b11/Oct26
+
+[NWPPipeline]
+path={{ netcdf_directory }}/
+fileFilter={{ netcdf_filename }}
+name={{ dataset_name }}
+fileFormat=CF_NETCDF
+
+; Variables que Met.3D necesita para derivar los objetos habilitados.
+inputVarsForDerivedVars={{ derived_variable_mappings | join('/') }}
+auxiliary3DPressureField=
+consistencyCheckRefVars=
+convertGeometricHeightToPressure_ICAOStandard=false
+disableGridConsistencyCheck=false
+enableProbabilityRegionFilter=false
+enableRegridding=false
+memoryManagerID=NWP
+treatProjectedGridAsRegularLonLatGrid=false
+treatRotatedGridAsRegularGrid=false

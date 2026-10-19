@@ -1,0 +1,13 @@
+; Render temporal en Met.3D. Los fotogramas se codifican después con FFmpeg.
+[BatchMode]
+animation_type=timeAnimation
+synchronization_name=Valid time
+session_file={{ session_file }}
+start_at_most_recent_init_time_of_datasource={{ dataset_name }}
+animation_time_range_s={{ timeline.range_seconds }}
+animation_time_step={{ timeline.step_seconds }} seconds
+screenshot_directory={{ frames_directory }}
+screenshot_filename=frame-%fn
+screenshot_file_extension=.png
+overwrite_existing_image_files=true
+quit_when_completed=true

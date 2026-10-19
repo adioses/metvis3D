@@ -535,6 +535,7 @@ class Grib2ToNetCDF:
 
         # Inicia netCDF en modo escritura con atributos globales
         dataset = Dataset(netcdf_output, "w", format="NETCDF4")
+        dataset.Conventions = "CF-1.10"
         dataset.title = "Conversión GRIB2 a NetCDF"
         dataset.model = self.model
         dataset.center = self.center
@@ -554,21 +555,27 @@ class Grib2ToNetCDF:
 
         # Dimension tiempo
         time_coordinate = dataset.createVariable("time", "f8", ("time",))
-        time_coordinate.units = "hours since 1800-01-01 00:00:00"
+        time_coordinate.standard_name = "time"
+        time_coordinate.units = f"hours since {self.forecast_date:%Y-%m-%d %H:%M:%S}"
 
         # Dimension lev (Isobaric levels)
         if self.pressure_levels:
             lev_coordinate = dataset.createVariable("lev", "i2", ("lev",))
+            lev_coordinate.standard_name = "air_pressure"
+            lev_coordinate.long_name = "Isobaric surface"
             lev_coordinate.units = "millibars"
+            lev_coordinate.positive = "down"
             lev_coordinate[:] = self.pressure_levels
 
         # Dimension latitud
         latitude_coordinate = dataset.createVariable("latitude", "f4", ("latitude",))
+        latitude_coordinate.standard_name = "latitude"
         latitude_coordinate.units = "degrees_north"
         latitude_coordinate[:] = latitude
 
         # Dimension longitud
         longitude_coordinate = dataset.createVariable("longitude", "f4", ("longitude",))
+        longitude_coordinate.standard_name = "longitude"
         longitude_coordinate.units = "degrees_east"
         longitude_coordinate[:] = longitude
 
@@ -652,4 +659,3 @@ class Grib2ToNetCDF:
             dataset[variable_name][time_index, lev_index, :, :] = values
         else:
             dataset[variable_name][time_index, :, :] = values
-

@@ -1,0 +1,31 @@
+; Mapa base asociado a la caja estática de la escena.
+[FileFormat]
+met3dVersion=2.0.0b11/Oct26
+
+[MActor]
+actorName={{ scene.title }} basemap
+properties\BaseMapActor\border_lines\enabled=true
+properties\BaseMapActor\border_lines\shape_file=$MET3D_BASE/third-party/naturalearth/ne_50m_admin_0_boundary_lines_land.shp
+properties\BaseMapActor\border_lines\thickness=1
+properties\BaseMapActor\bounding_box=1
+properties\BaseMapActor\coast_lines\enabled=true
+properties\BaseMapActor\coast_lines\shape_file=$MET3D_BASE/third-party/naturalearth/ne_50m_coastline.shp
+properties\BaseMapActor\coast_lines\thickness=1
+properties\BaseMapActor\colour_saturation=0.3
+properties\BaseMapActor\graticule\enabled=true
+properties\BaseMapActor\graticule\graticule_lats="[-90.,90.,{{ scene.basemap.graticule_spacing_degrees }}.]"
+properties\BaseMapActor\graticule\graticule_lons="[-180.,180.,{{ scene.basemap.graticule_spacing_degrees }}.]"
+properties\BaseMapActor\graticule\lat_labels="[-90.,90.,{{ scene.basemap.label_spacing_degrees }}.]"
+properties\BaseMapActor\graticule\lon_labels="[-180.,180.,{{ scene.basemap.label_spacing_degrees }}.]"
+properties\BaseMapActor\graticule\thickness=1
+properties\BaseMapActor\map_file=$MET3D_BASE/third-party/naturalearth/HYP_50M_SR_W.tif
+properties\actor_enabled=true
+
+[Metadata]
+actorConfigType=Base map
+
+[components]
+Bounding%20box\bottomPressure_hPa={{ scene.view_pressure.bottom_hpa }}
+Bounding%20box\horizontal2DCoords={{ scene.area.horizontal2d_coords }}
+Bounding%20box\topPressure_hPa={{ scene.view_pressure.top_hpa }}
+Bounding%20box\useBoundingBox={{ scene.bounding_boxes.scene }}

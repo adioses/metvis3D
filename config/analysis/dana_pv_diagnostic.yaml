@@ -1,0 +1,36 @@
+name: ncep_gfs_dana_pv_diagnostic
+
+source:
+  standardized_netcdf: data/standardized/ncep-gfs_20260816_00Z.nc
+  air_temperature: tmpprs
+  wind_u: ugrdprs
+  wind_v: vgrdprs
+  geopotential_height: hgtprs
+
+# La DANA se examina al sur del ecuador. Las longitudes se expresan en -180..180.
+domain:
+  west: -130.0
+  south: -56.0
+  east: -10.0
+  north: 0.0
+
+analysis:
+  # Submuestreo para el diagnóstico; no se interpola ni altera el NetCDF fuente.
+  horizontal_stride: 2
+  forecast_hours: [0, 48, 96, 144, 192, 240]
+  overview_pressure_levels_hpa: [350.0, 300.0, 250.0, 200.0]
+  vertical_pressure_levels_hpa: [500.0, 350.0, 300.0, 250.0, 200.0, 150.0]
+  vertical_panel_forecast_hours: [0, 96, 192]
+  wind_pressure_level_hpa: 300.0
+  geopotential_pressure_level_hpa: 500.0
+  pv_thresholds_pvu: [-5.0, -3.0, -2.0, -1.0]
+
+plot:
+  pv_filled_levels_pvu: [-12.0, -10.0, -8.0, -6.0, -5.0, -4.0, -3.0, -2.0, -1.0, -0.5, 0.0, 0.5, 1.0, 2.0]
+  pv_contours_pvu: [-5.0, -2.0]
+  geopotential_contour_interval_gpm: 120.0
+  wind_quiver_step: 8
+  draw_coastlines: false
+
+output:
+  directory: outputs/dana-pv-diagnostic

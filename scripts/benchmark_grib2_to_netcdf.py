@@ -219,7 +219,7 @@ def main() -> None:
         center=arguments.center,
         configuration_yml=arguments.configuration_yml,
         area=area,
-        longitude_convention="0_360",
+        longitude_convention="-180_180",
         variables=variables,
         benchmark_log=benchmark_log,
     )

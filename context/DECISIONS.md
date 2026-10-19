@@ -1,143 +1,117 @@
 # Decisiones del proyecto
 
-Este archivo registra decisiones confirmadas que afectan el alcance, la
-operación o el contrato de datos del proyecto. No es un diario de desarrollo.
+Este archivo registra decisiones vigentes que afectan el alcance, la operación
+o el contrato de datos del proyecto. No es un diario de desarrollo.
 
 ## D-001 — Entorno local y despliegue HPC
 
-**Fecha:** 2026-09-15, actualizada 2026-09-29  
+**Fecha:** 2026-09-15, actualizada 2026-09-29
 **Decisión:** el desarrollo local se realiza con Docker Compose y Micromamba.
-El despliegue en el HPC se realizará con Conda usando el mismo
-`environment.yml`, sin depender de Docker.
+El despliegue en HPC se realizará con Conda usando el mismo `environment.yml`,
+sin depender de Docker.
 
-**Motivo:** el contenedor ofrece un entorno Linux reproducible en desarrollo,
-mientras que el HPC no requiere ni presupone disponibilidad de Docker.
-
-**Impacto:** la lógica operativa no depende de servicios o rutas exclusivas del
-contenedor. Las versiones de las dependencias de ejecución se fijan en
-`environment.yml`; Docker sólo crea el entorno local equivalente.
+**Impacto:** la lógica operativa no depende de rutas o servicios exclusivos del
+contenedor; Docker reproduce el entorno local y Conda permite ejecutarlo en el
+HPC.
 
 ## D-002 — Un NetCDF final por corrida
 
-**Fecha:** 2026-09-15, actualizada 2026-09-23  
+**Fecha:** 2026-09-15, actualizada 2026-09-23
 **Decisión:** una corrida homogénea de un modelo produce un único NetCDF final.
-No se generan NetCDF parciales por variable ni por tiempo, y la salida no
+No se generan NetCDF parciales por variable o tiempo, y la salida no
 sobrescribe un archivo existente.
 
-**Motivo:** concentrar los campos de una corrida facilita el consumo posterior
-y preserva una unidad de trabajo identificable por centro, modelo y hora de
-inicialización.
-
-**Impacto:** los archivos GRIB2 de entrada deben pertenecer a una sola corrida,
-con la misma hora de referencia, dominio y tamaño de grilla. El nombre de
-salida es `{center}-{model}_{YYYYmmdd}_{HH}Z.nc`.
+**Impacto:** los GRIB2 de entrada pertenecen a una sola corrida, con la misma
+hora de referencia, dominio y grilla. El nombre de salida es
+`{center}-{model}_{YYYYmmdd}_{HH}Z.nc`.
 
 ## D-003 — Estructura canónica del NetCDF
 
-**Fecha:** 2026-09-23  
+**Fecha:** 2026-09-23
 **Decisión:** las dimensiones canónicas son `time`, `lev`, `latitude` y
-`longitude`. Los campos de un solo nivel usan `(time, latitude, longitude)`; 
-los campos isobáricos usan `(time, lev, latitude, longitude)`.
+`longitude`. Los campos de superficie usan `(time, latitude, longitude)` y los
+isobáricos `(time, lev, latitude, longitude)`.
 
-**Motivo:** establecer una estructura común para GFS, ECMWF, ETA y fuentes futuras
-sin alterar la naturaleza vertical de los datos de origen.
-
-**Impacto:** `time` es ilimitada y contiene tiempos válidos. `lev` sólo se crea
-cuando hay campos isobáricos; conserva los niveles nativos en orden
-descendente, con unidades `millibars`. Las coordenadas horizontales usan
-`degrees_north` y `degrees_east`.
+**Impacto:** `lev` conserva niveles nativos descendentes en `millibars`; las
+coordenadas horizontales usan `degrees_north` y `degrees_east`.
 
 ## D-004 — Lectura y trazabilidad de GRIB2
 
 **Fecha:** 2026-09-23, actualizada 2026-10-05
+**Decisión:** el conversor se especializa en corridas con un archivo por tiempo
+válido, una grilla común y una sola hora de referencia. WGRIB2 valida los
+metadatos e inventaría mensajes; PyGRIB lee las matrices; NetCDF4 escribe la
+salida.
 
-**Decisión:** el conversor se especializa en las salidas de modelos numéricos
-seleccionadas por el proyecto. Cada archivo aporta un único tiempo válido y una
-misma grilla para todos sus mensajes; una corrida tiene un archivo por tiempo
-válido, al menos tres archivos y una sola hora de referencia, dominio y grilla.
-WGRIB2 consulta el primer mensaje de cada archivo para validar esos metadatos y
-el primer, segundo y último archivo para definir variables y niveles. PyGRIB
-lee las matrices y WGRIB2 asocia cada mensaje mediante su número explícito.
-NetCDF4 escribe el producto final.
-
-**Motivo:** las variables y niveles de estas salidas se mantienen en toda la
-corrida. Los únicos campos no persistentes son los acumulados desde el segundo
-tiempo y algunos campos exclusivos del primero. El muestreo de tres archivos
-cubre esas variantes sin inventariar repetidamente metadatos idénticos. WGRIB2
-resuelve la nomenclatura NCEP y proporciona siempre unidades; `[-]` indica una
-cantidad sin unidad física.
-
-**Impacto:** `short_name` es único por disciplina-categoría-parámetro en estas
-fuentes; superficie y proceso estadístico completan la desambiguación de los
-nombres NetCDF. El conversor aplica remapeos, resuelve colisiones y sólo al
-final normaliza los nombres a minúsculas; una colisión restante detiene la
-conversión. El NetCDF conserva `parameter_signature`, centro, tabla maestra y
-tabla local, superficie, proceso estadístico y atributos de remapeo. No conserva el
-`wgrib2_short_name` anterior al remapeo. El eje temporal reúne los tiempos
-válidos de los archivos, sin completar ni inferir plazos faltantes.
+**Impacto:** el esquema se define desde el primer, segundo y último archivo;
+cada mensaje conserva procedencia suficiente para revisar variable, superficie,
+proceso estadístico y remapeo.
 
 ## D-005 — Remapeo y selección de variables
 
 **Fecha:** 2026-09-23, actualizada 2026-10-08
-**Decisión:** los parámetros locales se remapean únicamente mediante reglas
-explícitas de `config/grib2-definitions.yaml`. La selección opcional usa los
-nombres finales resultantes de esos remapeos y se configura por modelo.
+**Decisión:** los parámetros locales sólo se remapean mediante reglas explícitas
+en `config/grib2-definitions.yaml`. La selección opcional usa los nombres
+finales resultantes.
 
-**Motivo:** los códigos locales no son homogéneos entre centros productores;
-las transformaciones deben ser explícitas y rastreables.
-
-**Impacto:** cada regla define obligatoriamente nombre, unidades, `factor`,
-`offset` y `long_name`. Los atributos de remapeo se escriben en el NetCDF. Una
-regla incompleta o que no pueda aplicarse detiene la conversión. Un parámetro
-local sin regla conserva su definición NCEP y emite una advertencia.
+**Impacto:** una regla define nombre, unidades, `factor`, `offset` y
+`long_name`; una regla incompleta o no aplicable detiene la conversión.
 
 ## D-006 — Coordenadas, recorte y conservación de valores
 
-**Fecha:** 2026-09-23  
+**Fecha:** 2026-09-23
 **Decisión:** el área de recorte se expresa como `(west, south, east, north)`
-en `-180..180`, debe estar contenida en el dominio y no puede cruzar el
-antimeridiano. La salida permite las convenciones longitudinales `0_360` o
-`-180_180`.
+en `-180..180`, debe estar dentro del dominio y no puede cruzar el
+antimeridiano. La salida puede usar longitudes `0_360` o `-180_180`.
 
-**Motivo:** el recorte debe ser consistente entre modelos y conservar los
-valores de la grilla fuente.
-
-**Impacto:** se reordenan coordenadas y columnas de las matrices de forma
-conjunta. No se interpola ni remuestrea; las únicas transformaciones de valores
-son `factor` y `offset` definidos en un remapeo aprobado.
+**Impacto:** se reordenan coordenadas y columnas de matriz de forma conjunta;
+no se interpola ni remuestrea. Sólo se aplican `factor` y `offset` de un
+remapeo aprobado.
 
 ## D-007 — Escritura y atributos del NetCDF
 
-**Fecha:** 2026-09-23  
-**Decisión:** las variables meteorológicas se escriben como `float32` con
-compresión `zlib` y `least_significant_digit=2`. El NetCDF registra modelo,
-centro, dominio, hora de referencia y convención longitudinal.
+**Fecha:** 2026-09-23
+**Decisión:** las variables meteorológicas se escriben como `float32`, con
+compresión `zlib` y `least_significant_digit=2`.
 
-**Motivo:** reducir volumen de almacenamiento y mantener procedencia suficiente
-para revisar una conversión sin perder la estructura científica del producto.
+**Impacto:** el NetCDF registra modelo, centro, dominio, hora de referencia,
+convención longitudinal y metadatos de procedencia. Las verificaciones
+científicas consideran la cuantización decimal declarada.
 
-**Impacto:** los valores están sujetos a la cuantización decimal configurada.
-Cada variable conserva unidades, `long_name` y metadatos de procedencia; las
-verificaciones científicas deben considerar dicha cuantización.
+## D-009 — Metadatos CF para NetCDF de pronóstico
 
-## D-008 — Escena estática inicial de topografía sudamericana
+**Fecha:** 2026-10-13
+**Decisión:** los NetCDF generados declaran `Conventions=CF-1.10`. Las
+coordenadas `time`, `lev`, `latitude` y `longitude` incluyen nombres estándar
+CF; `lev` declara `standard_name=air_pressure` y `positive=down`.
 
-**Fecha:** 2026-10-09
-**Decisión:** la primera escena geográfica reutilizable emplea el GeoTIFF
-global GMTED2010 `mn30` como fuente de topografía. Cubre
-`(west=-130, south=-56, east=-10, north=30)`, usa Lambert Conformal Conic con
-metros como coordenadas horizontales, una malla de renderizado de 10 km y
-exageración vertical de 12 veces. El océano se representa como un plano azul a
-0 m; el relieve usa una paleta hipsométrica configurable.
+**Impacto:** el tiempo se expresa en horas desde la inicialización de la
+corrida y los consumidores recuperan los mismos tiempos válidos sin transformar
+campos, niveles ni grilla.
 
-**Motivo:** la resolución de 30 segundos de arco es suficiente para el contexto
-continental y permite una malla estable para animaciones Full HD. Lambert
-Conformal Conic evita la distorsión marcada de Web Mercator sobre el sur de
-Sudamérica y mantiene coordenadas métricas compatibles con la altura de los
-campos atmosféricos.
+## D-010 — Flujo actual de animaciones con Met.3D
 
-**Impacto:** `config/scenes/south_america.yaml` define el dominio, proyección,
-resolución, exageración y paleta. `scripts/prepare_static_scene.py` produce un
-GeoTIFF Lambert y una malla VTS descartables en
-`paraview/render_data/static/south_america/`; los VTS atmosféricos posteriores
-deben usar la misma proyección y exageración vertical dentro de esta escena.
+**Fecha:** 2026-10-19
+**Decisión:** Met.3D opera de forma independiente bajo `config/met3d/`, con
+escenas, animaciones, sesiones y runtime propios. DANA y jet usan el motor
+común `src/visualize/met3d_animation.py`; sus lanzadores reciben un NetCDF
+estandarizado y materializan configuraciones temporales por corrida.
+
+**Impacto:** el runtime se limita a `met3D/.runtime/`; los MP4 históricos se
+guardan bajo `outputs/met3d/`. Las cámaras, objetos, intervalos de presión y
+salida se mantienen en los YAML de cada animación, sin intervenir en ParaView.
+
+## D-011 — Flujo actual de animaciones con ParaView
+
+**Fecha:** 2026-10-19
+**Decisión:** ParaView opera de forma independiente bajo `config/paraview/`.
+Una escena define geografía, proyección, DEM y estilo; una animación define
+capas, variables, intervalos verticales, cámara, línea de tiempo y salida. La
+lógica científica se organiza en `src/visualize/paraview/`.
+
+**Impacto:** los temporales se organizan por escena y capa en
+`paraview/render_data/`; los fotogramas transitorios de una escena se guardan
+en `paraview/render_cache/`; los MP4 históricos se almacenan en
+`outputs/paraview/`. La capa jet construye su geometría desde `hgtprs` y puede
+completar únicamente huecos aislados declarados en su YAML, sin alterar el
+NetCDF estandarizado.

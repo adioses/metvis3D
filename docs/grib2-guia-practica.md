@@ -342,9 +342,20 @@ superficie:  (time, latitude, longitude)
 presión:     (time, lev, latitude, longitude)
 ~~~
 
-lev conserva niveles isobáricos nativos en orden descendente, con unidades
-millibars. Las coordenadas horizontales usan degrees_north y degrees_east. Las
-variables se escriben como float32 con compresión zlib y
+El archivo declara `Conventions=CF-1.10`. Las coordenadas `time`, `lev`,
+`latitude` y `longitude` incluyen sus `standard_name` CF. `lev` conserva los
+niveles isobáricos nativos en orden descendente, con unidades `millibars`,
+`standard_name=air_pressure` y `positive=down`. Las coordenadas horizontales
+usan `degrees_north` y `degrees_east`.
+
+En una corrida de pronóstico, `time.units` usa la hora de inicialización como
+referencia y sus valores son las horas transcurridas hasta cada tiempo válido.
+Por ejemplo, una corrida iniciada a las 00Z con plazos de tres horas escribe
+`0, 3, 6, ...`. Esta codificación conserva los tiempos válidos y permite que
+lectores de pronóstico, incluido Met.3D, identifiquen la inicialización y el
+plazo correctamente.
+
+Las variables se escriben como float32 con compresión zlib y
 least_significant_digit=2; las verificaciones numéricas consideran esa
 cuantización.
 

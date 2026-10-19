@@ -1,0 +1,19 @@
+# Escena estática exclusiva para Met.3D.
+# Los límites geográficos se expresan en grados, dentro de -180..180.
+name: south_america
+title: South America
+
+area:
+  west: -130.0
+  south: -60.0
+  east: -10.0
+  north: 30.0
+
+# Este volumen da contexto a la topografía de presión y a los objetos 3D.
+view_pressure:
+  bottom_hpa: 1045.0
+  top_hpa: 100.0
+
+basemap:
+  graticule_spacing_degrees: 10
+  label_spacing_degrees: 20

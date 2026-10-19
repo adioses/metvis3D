@@ -5,6 +5,7 @@ data/standardized/*
 !data/standardized/.gitkeep
 outputs/*
 !outputs/.gitkeep
+met3D/.runtime/
 
 # Notebooks development
 notebooks/development_test.ipynb

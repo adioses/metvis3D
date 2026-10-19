@@ -1,0 +1,48 @@
+; Presión superficial como topografía de la coordenada presión.
+[FileFormat]
+met3dVersion=2.0.0b11/Oct26
+
+[MActor]
+actorName=Surface pressure topography
+header\NWPMultiVarActor\numVariables=1
+header\Variable_0\dataLoaderID={{ dataset_name }}
+header\Variable_0\ensembleUtilizedMembers=0
+header\Variable_0\groupDefinedByUUID=true
+header\Variable_0\levelType=0
+header\Variable_0\numContourSets=1
+header\Variable_0\uuid=@Variant(\0\0\0\x7f\0\0\0\x6QUuid\0\x39\x62)xi\x89N\x4\x80\xc3\x66\x17\xbd\x45\xc8\r)
+header\Variable_0\variableName={{ variables.surface_pressure }}
+properties\actor_enabled=true
+properties\actor_variables\%7B39622978-6989-4e04-80c3-6617bd45c80d%7D\data_source_id={{ dataset_name }}
+properties\actor_variables\%7B39622978-6989-4e04-80c3-6617bd45c80d%7D\init_time_control_index=1
+properties\actor_variables\%7B39622978-6989-4e04-80c3-6617bd45c80d%7D\selected_members=0
+properties\actor_variables\%7B39622978-6989-4e04-80c3-6617bd45c80d%7D\valid_time_control_index=2
+properties\actor_variables\%7B39622978-6989-4e04-80c3-6617bd45c80d%7D\var_display_name={{ variables.surface_pressure }} (Single Level)
+properties\actor_variables\%7B39622978-6989-4e04-80c3-6617bd45c80d%7D\var_name_level_type={{ variables.surface_pressure }} (Single Level)
+properties\basemap_saturation=0.3
+;properties\border_lines\enabled=true
+;properties\border_lines\shape_file=$MET3D_BASE/third-party/naturalearth/ne_50m_admin_0_boundary_lines_land.shp
+;properties\bounding_box=1
+;properties\coast_lines\enabled=true
+;properties\coast_lines\shape_file=$MET3D_BASE/third-party/naturalearth/ne_50m_coastline.shp
+properties\geotiff=$MET3D_BASE/third-party/naturalearth/HYP_50M_SR_W.tif
+properties\graticule\enabled=true
+properties\graticule\graticule_lats="[-90.,90.,10.]"
+properties\graticule\graticule_lons="[-180.,180.,10.]"
+properties\render_geotiff=true
+properties\shading_var=@Variant(\0\0\0\x7f\0\0\0\x6QUuid\0\x39\x62)xi\x89N\x4\x80\xc3\x66\x17\xbd\x45\xc8\r)
+properties\topography_var=@Variant(\0\0\0\x7f\0\0\0\x6QUuid\0\x39\x62)xi\x89N\x4\x80\xc3\x66\x17\xbd\x45\xc8\r)
+properties\var_level=-1
+properties\wire_frame_enabled=false
+
+[Metadata]
+actorConfigType=Surface topography
+
+[NWPSurfaceTopographyActor]
+var_level_backup=-1
+
+[components]
+Bounding%20box\bottomPressure_hPa={{ scene.view_pressure.bottom_hpa }}
+Bounding%20box\horizontal2DCoords={{ scene.area.horizontal2d_coords }}
+Bounding%20box\topPressure_hPa={{ scene.view_pressure.top_hpa }}
+Bounding%20box\useBoundingBox={{ scene.bounding_boxes.scene }}

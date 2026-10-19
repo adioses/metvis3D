@@ -1,0 +1,13 @@
+# Revisión espacial de valores ausentes en altura geopotencial isobárica.
+source:
+  standardized_netcdf: data/standardized/ncep-gfs_20260816_00Z.nc
+  geopotential_height: hgtprs
+
+domain:
+  west: -130.0
+  south: -56.0
+  east: -10.0
+  north: 30.0
+
+output:
+  png: outputs/data-quality/hgtprs_missing_values.png
