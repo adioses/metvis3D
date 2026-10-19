@@ -21,7 +21,8 @@ que necesita.
 ## Requisitos
 
 - Un NetCDF estandarizado de una corrida completa.
-- El ambiente Conda `met3d`, con el binario `Met3D` instalado.
+- Un ambiente Conda Linux creado desde `environment.yml`, con el binario
+  `Met3D` instalado. El ambiente operativo se denomina `metvis3d`.
 - La sesión base `met3D/sessions/south_america_dana_base.session.config`.
 
 Los comandos siguientes se ejecutan desde la raíz del proyecto.
@@ -75,6 +76,10 @@ conda run -n metvis3d python scripts/run_met3d_jet.py \
 ```
 
 El video se conserva bajo `outputs/met3d/jet/<centro>-<modelo>/`.
+
+Para validar un ambiente con otro nombre, conserve el ambiente que ejecuta
+Python y especifique el mismo nombre para Met.3D. Por ejemplo, para
+`metvis3d-test` agregue `--met3d-environment metvis3d-test` a cada comando.
 
 ## Ajuste de cámara
 

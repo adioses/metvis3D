@@ -115,3 +115,17 @@ en `paraview/render_cache/`; los MP4 históricos se almacenan en
 `outputs/paraview/`. La capa jet construye su geometría desde `hgtprs` y puede
 completar únicamente huecos aislados declarados en su YAML, sin alterar el
 NetCDF estandarizado.
+
+## D-012 — Ambiente Conda unificado para visualización 3D
+
+**Fecha:** 2026-10-19
+**Decisión:** el ambiente Conda de referencia para la visualización 3D se
+ejecuta en Linux e incluye Python 3.14, Met.3D, ParaView y FFmpeg junto con las
+dependencias de estandarización. No se mantiene compatibilidad con macOS para
+este ambiente. La primera comprobación se realiza en `metvis3d-test`; los
+ambientes existentes se conservan hasta acordar su reemplazo.
+
+**Impacto:** `environment.yml` declara los canales `conda-forge` y `met3d`,
+Met.3D 2.0.0b11, ParaView 6.2.0, PROJ 9.9 y una versión de `cftime` resoluble.
+Los lanzadores Met.3D toman `metvis3d` como ambiente predeterminado y aceptan
+el nombre de un ambiente de validación mediante `--met3d-environment`.

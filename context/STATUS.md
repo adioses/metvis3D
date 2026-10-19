@@ -6,9 +6,9 @@
 
 El proyecto se encuentra en el cierre del ítem a) de la sección 6 de los
 Términos de Referencia. El conversor `Grib2ToNetCDF` está implementado y
-verificado estructuralmente. Los flujos actuales de visualización funcionan de
-forma independiente en Met.3D y ParaView; la siguiente etapa es su validación
-meteorológica y visual.
+verificado estructuralmente. Los flujos de visualización se validaron
+técnicamente en un único ambiente Conda Linux con Met.3D y ParaView; la
+siguiente etapa es su validación meteorológica y visual.
 
 ## Estado frente al alcance contractual
 
@@ -69,9 +69,17 @@ meteorológica y visual.
 - La animación ParaView de jet usa `ugrdprs`, `vgrdprs` y `hgtprs` entre 500 y
   50 hPa. La carga interactiva y el render batch se verificaron manualmente
   con la corrida GFS de 2026-08-16.
+- El ambiente `metvis3d-test`, creado desde `environment.yml`, reúne Python
+  3.14, Met.3D 2.0.0b11, ParaView 6.2.0, FFmpeg y las dependencias de
+  estandarización. Importó los módulos científicos y del proyecto sin errores.
+- Con ese ambiente se generaron los batch de DANA y jet de Met.3D, y jet de
+  ParaView, para `ncep-gfs_20260816_00Z.nc`. Los tres MP4 tienen 81
+  fotogramas H.264 de 1920×1080 y 8.1 s. Met.3D obtuvo OpenGL 4.6; ParaView
+  aplicó la política YAML para diez huecos aislados de `hgtprs` a 250 hPa.
 
 ## Siguiente actividad
 
 Revisar meteorológicamente los videos generados, ajustar desde YAML los
-umbrales, intervalos verticales, cámaras y estilo cuando corresponda, y acordar
-el protocolo de validación científica para GFS y ECMWF.
+umbrales, intervalos verticales, cámaras y estilo cuando corresponda, acordar
+el protocolo de validación científica para GFS y ECMWF, y decidir la promoción
+de `metvis3d-test` al ambiente operativo `metvis3d`.

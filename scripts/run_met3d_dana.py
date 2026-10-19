@@ -52,7 +52,7 @@ if __name__ == "__main__":
     )
     parser.add_argument("--netcdf", type=Path, required=True, help="NetCDF estandarizado de una corrida completa.")
     parser.add_argument("--conda", default="conda", help="Comando Conda que contiene Met.3D.")
-    parser.add_argument("--met3d-environment", default="met3d", help="Nombre del ambiente Conda de Met.3D.")
+    parser.add_argument("--met3d-environment", default="metvis3d", help="Nombre del ambiente Conda que contiene Met.3D.")
     action = parser.add_mutually_exclusive_group()
     action.add_argument("--prepare-only", action="store_true", help="Genera configuraciones sin abrir Met.3D.")
     action.add_argument("--render", action="store_true", help="Renderiza los fotogramas y codifica el MP4.")

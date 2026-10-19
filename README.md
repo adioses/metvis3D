@@ -71,10 +71,10 @@ conda activate metvis3d
 pip install -e .
 ```
 
-Docker Compose es el entorno local de desarrollo. Ejecuta Conda mediante
-Micromamba dentro de una imagen Linux y monta `../source` como `data/raw` en
-modo solo lectura. El HPC ejecutará el mismo `environment.yml` con Conda y los
-binarios instalados de ParaView, Met.3D y FFmpeg.
+El entorno unificado requiere Linux y OpenGL para las visualizaciones 3D. El
+archivo incluye Met.3D, ParaView y FFmpeg, por lo que el HPC usa el mismo
+`environment.yml` directamente mediante Conda, sin instalaciones externas de
+esos programas.
 
 ## Desarrollo local con Docker
 

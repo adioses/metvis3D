@@ -74,14 +74,13 @@ Prepare de nuevo la animación antes de ejecutar el render batch.
 
 ## Render batch
 
-Para renderizar todos los plazos con la instalación local de ParaView:
+Para renderizar todos los plazos con `pvpython` instalado en el ambiente Conda:
 
 ```bash
 conda run -n metvis3d python scripts/run_paraview_animation.py \
   --animation config/paraview/animations/south_america_jet.yaml \
   --netcdf data/standardized/ncep-gfs_20260816_00Z.nc \
-  --render \
-  --pvpython /home/alen/Paraview/bin/pvpython
+  --render
 ```
 
 El MP4 histórico queda en
