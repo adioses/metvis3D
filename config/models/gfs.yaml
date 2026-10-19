@@ -1,11 +1,17 @@
 model:
-  id: GFS
-  adapter: gfs
-  source_pattern: null  # Definir en cada ejecución o en configuración local no versionada.
+  id: gfs
+  center: ncep
+
+source:
+  directory_template: data/raw/GFS/{date}{cycle_hour}
+  file_template: gfs.t{cycle_hour}z.pgrb2.0p25.f{forecast_hour:03d}
+  forecast_schedule:
+    - first_hour: 0
+      last_hour: 384
+      step_hours: 3
 
 standardization:
-  output_name: "GFS_{initialization:%Y%m%dT%H}.nc"
-  longitude_range: "-180_180"
+  longitude_range: "0_360"
 
 # Esta selección es inicial y se ampliará al definir los productos audiovisuales.
 selected_variables:

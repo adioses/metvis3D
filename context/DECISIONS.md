@@ -129,3 +129,16 @@ ambientes existentes se conservan hasta acordar su reemplazo.
 Met.3D 2.0.0b11, ParaView 6.2.0, PROJ 9.9 y una versión de `cftime` resoluble.
 Los lanzadores Met.3D toman `metvis3d` como ambiente predeterminado y aceptan
 el nombre de un ambiente de validación mediante `--met3d-environment`.
+
+## D-013 — Selección configurada de corridas GFS e IFS
+
+**Fecha:** 2026-10-19
+**Decisión:** el conversor recibe modelo, fecha, ciclo y horizonte de
+pronóstico; para GFS e IFS, cada YAML declara el centro, el directorio de la
+corrida, la plantilla de archivos y su calendario de plazos. El lanzador
+construye los GRIB esperados directamente, sin incorporar índices `.idx` ni
+controles `.ctl`.
+
+**Impacto:** GFS usa plazos de 3 h hasta 384 h. IFS usa plazos de 3 h hasta
+144 h y de 6 h entre 150 y 240 h. El horizonte solicitado es inclusivo, debe
+coincidir con el calendario del modelo y genera un único NetCDF por corrida.

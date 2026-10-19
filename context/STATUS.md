@@ -37,6 +37,10 @@ siguiente etapa es su validación meteorológica y visual.
 - El conversor declara el contrato CF-1.10 de las coordenadas: nombres
   estándar, presión isobárica con dirección `down` y tiempo referido a la hora
   de inicialización de la corrida.
+- El lanzador de conversión resuelve las corridas configuradas de GFS e IFS a
+  partir de modelo, fecha, ciclo y horizonte. Construye únicamente los nombres
+  GRIB previstos por cada calendario, por lo que excluye índices y controles y
+  detiene la ejecución ante un plazo ausente.
 - `scripts/report_grib2_inventory.py` genera reportes de las variables,
   superficies y remapeos presentes. `scripts/benchmark_grib2_to_netcdf.py`
   registra las etapas de validación, preparación de variables y escritura por
@@ -45,7 +49,7 @@ siguiente etapa es su validación meteorológica y visual.
 ## Pendiente para cerrar el ítem a)
 
 - Definir y ejecutar casos de verificación científica para las variables
-  seleccionadas de GFS y ECMWF.
+  seleccionadas de GFS e IFS.
 - Comparar cada caso con su GRIB2 de origen: variable y unidades, tiempo
   válido, nivel, orientación espacial, área recortada, valores y remapeos.
 - Documentar las tolerancias asociadas a `least_significant_digit=2` y

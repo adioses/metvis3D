@@ -44,22 +44,28 @@ Las guías operativas para generar videos y ajustar cámaras están en:
 
 ## Conversión GRIB2 a NetCDF
 
-El lanzador operativo recibe los GRIB2 de una única corrida, el YAML del modelo
-y el centro productor. Lee de la configuración las variables seleccionadas y
-la convención longitudinal, y produce un único NetCDF bajo
-`data/standardized/`.
+El lanzador operativo recibe modelo, fecha de inicialización, ciclo y horizonte
+de una única corrida. Lee de la configuración versionada el centro productor,
+las rutas y nombres de los GRIB2, las variables seleccionadas y la convención
+longitudinal; produce un único NetCDF bajo `data/standardized/`.
 
 ```bash
 conda run -n metvis3d python scripts/convert_grib2_to_netcdf.py \
-  "data/raw/GFS/*.grib2" \
-  --model-configuration config/models/gfs.yaml \
-  --center ncep \
+  --model gfs \
+  --date 20260816 \
+  --cycle-hour 00 \
+  --forecast-hours 120 \
   --area -130 -56 -10 30
 ```
 
-El recorte es opcional; omita `--area` para conservar el dominio completo. El
-proceso se detiene si los GRIB2 no corresponden a una misma corrida o si el
-NetCDF final ya existe.
+El directorio `data/raw/` debe contener la jerarquía de datos indicada en el
+YAML del modelo. El recorte es opcional; omita `--area` para conservar el
+dominio completo. El proceso se detiene si falta un GRIB2 previsto, los GRIB2
+no corresponden a una misma corrida o el NetCDF final ya existe.
+
+Los modelos operativos disponibles son `gfs` e `ifs`. Los argumentos
+`--dia`, `--hh` y `--horas` son equivalentes a `--date`, `--cycle-hour` y
+`--forecast-hours`, respectivamente.
 
 ## Entorno
 

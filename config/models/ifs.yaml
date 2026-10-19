@@ -1,0 +1,31 @@
+model:
+  id: ifs
+  center: ecmwf
+
+source:
+  directory_template: data/raw/ECMWF27/{date}{cycle_hour}
+  file_template: "{date}{cycle_hour}0000-{forecast_hour:03d}h-oper-fc.grib2"
+  forecast_schedule:
+    - first_hour: 0
+      last_hour: 144
+      step_hours: 3
+    - first_hour: 150
+      last_hour: 240
+      step_hours: 6
+
+standardization:
+  longitude_range: "-180_180"
+
+selected_variables:
+  - ugrdprs
+  - vgrdprs
+  - vvelprs
+  - tcdcclm
+  - tmpprs
+  - rhprs
+  - hgtprs
+  - tmp2m
+  - ugrd10m
+  - vgrd10m
+  - prmslmsl
+  - apcpsfc
