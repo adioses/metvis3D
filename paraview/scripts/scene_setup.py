@@ -10,6 +10,7 @@ from paraview.simple import (
     Contour,
     GetColorTransferFunction,
     Outline,
+    PVDReader,
     Show,
     XMLStructuredGridReader,
 )
@@ -65,10 +66,14 @@ def add_terrain(view, layer: dict) -> None:
 def add_wind_speed_isosurface(view, layer: dict) -> dict:
     """Incorpora el volumen temporal de viento y sus actores visibles."""
 
-    frame_files = layer["frame_files"]
-    if not frame_files:
-        raise RuntimeError(f"La capa {layer['name']} no contiene VTS temporales.")
-    volume = XMLStructuredGridReader(registrationName=f"{layer['name']} volume", FileName=[frame_files[0]])
+    collection_file = Path(layer["collection_file"])
+    if not collection_file.exists():
+        raise RuntimeError(f"No existe la colección temporal de la capa {layer['name']}: {collection_file}")
+    volume = PVDReader(registrationName=f"{layer['name']} volume", FileName=str(collection_file))
+    volume.UpdatePipelineInformation()
+    time_values = list(volume.TimestepValues)
+    if not time_values:
+        raise RuntimeError(f"La colección temporal de la capa {layer['name']} no contiene plazos.")
     volume_outline = layer["volume_outline"]
     outline = None
     if volume_outline is not None:
@@ -87,7 +92,7 @@ def add_wind_speed_isosurface(view, layer: dict) -> dict:
     ColorBy(isosurface_display, None)
     isosurface_display.DiffuseColor = layer["isosurface"]["color"]
     isosurface_display.Opacity = layer["isosurface"]["opacity"]
-    return {"reader": volume, "outline": outline, "filter": isosurface, "frame_files": frame_files}
+    return {"reader": volume, "outline": outline, "filter": isosurface, "time_values": time_values}
 
 
 def create_scene(view, configuration: dict) -> dict[str, dict]:

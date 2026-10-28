@@ -4,7 +4,13 @@ import os
 import sys
 from pathlib import Path
 
-from paraview.simple import GetActiveViewOrCreate, Render
+from paraview.simple import (
+    GetActiveViewOrCreate,
+    GetAnimationScene,
+    Render,
+    ResetSession,
+    _DisableFirstRenderCameraReset,
+)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -24,8 +30,19 @@ def open_prepared_animation() -> None:
             "generado por scripts/run_paraview_animation.py."
         )
     configuration = load_configuration(Path(configuration_name))
+    ResetSession()
+    _DisableFirstRenderCameraReset()
     view = GetActiveViewOrCreate("RenderView")
-    create_scene(view, configuration)
+    view.ViewSize = [
+        int(configuration["output"]["width_px"]),
+        int(configuration["output"]["height_px"]),
+    ]
+    temporal_layers = create_scene(view, configuration)
+    time_values = next(iter(temporal_layers.values()))["time_values"]
+    animation_scene = GetAnimationScene()
+    animation_scene.UpdateAnimationUsingDataTimeSteps()
+    animation_scene.AnimationTime = time_values[0]
+    view.ViewTime = time_values[0]
     Render(view)
 
 

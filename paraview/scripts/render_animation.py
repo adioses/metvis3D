@@ -25,21 +25,23 @@ def render_frames(view, temporal_layers: dict[str, dict], configuration: dict) -
     height_px = int(configuration["output"]["height_px"])
     if not temporal_layers:
         raise RuntimeError("La configuración no contiene capas temporales para renderizar.")
-    frame_counts = {name: len(layer["frame_files"]) for name, layer in temporal_layers.items()}
-    if not all(frame_counts.values()):
-        raise RuntimeError("Una capa temporal no contiene VTS para renderizar.")
-    if len(set(frame_counts.values())) != 1:
-        details = ", ".join(f"{name}: {count}" for name, count in frame_counts.items())
-        raise RuntimeError(f"Las capas temporales no tienen la misma cantidad de plazos: {details}.")
-    frame_count = next(iter(frame_counts.values()))
+    time_sequences = {name: layer["time_values"] for name, layer in temporal_layers.items()}
+    first_layer, time_values = next(iter(time_sequences.items()))
+    if not time_values:
+        raise RuntimeError(f"La capa temporal {first_layer} no contiene plazos.")
+    inconsistent_layers = [name for name, values in time_sequences.items() if values != time_values]
+    if inconsistent_layers:
+        names = ", ".join([first_layer, *inconsistent_layers])
+        raise RuntimeError(f"Las capas temporales no comparten los mismos plazos: {names}.")
+    frame_count = len(time_values)
     print(f"ParaView renderizará {frame_count} fotogramas PNG.", flush=True)
-    for frame_number in range(frame_count):
+    for frame_number, time_value in enumerate(time_values):
+        view.ViewTime = time_value
         for layer in temporal_layers.values():
-            layer["reader"].FileName = [layer["frame_files"][frame_number]]
-            layer["reader"].UpdatePipeline()
+            layer["reader"].UpdatePipeline(time_value)
             if layer["outline"] is not None:
-                layer["outline"].UpdatePipeline()
-            layer["filter"].UpdatePipeline()
+                layer["outline"].UpdatePipeline(time_value)
+            layer["filter"].UpdatePipeline(time_value)
         Render(view)
         SaveScreenshot(
             str(frames_directory / f"frame-{frame_number:04d}.png"),
@@ -57,7 +59,6 @@ if __name__ == "__main__":
         default=os.environ.get("METVIS3D_PARAVIEW_CONFIGURATION"),
         help="JSON transitorio de la animación.",
     )
-    parser.add_argument("--interactive", action="store_true", help="Abre la escena sin capturar fotogramas.")
     arguments = parser.parse_args()
     if arguments.configuration is None:
         parser.error("Debe indicar --configuration o METVIS3D_PARAVIEW_CONFIGURATION.")
@@ -70,6 +71,4 @@ if __name__ == "__main__":
         int(configuration["output"]["height_px"]),
     ]
     temporal_layers = create_scene(view, configuration)
-    interactive = arguments.interactive or os.environ.get("METVIS3D_PARAVIEW_INTERACTIVE") == "1"
-    if not interactive:
-        render_frames(view, temporal_layers, configuration)
+    render_frames(view, temporal_layers, configuration)

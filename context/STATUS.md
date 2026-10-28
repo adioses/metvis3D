@@ -1,6 +1,6 @@
 # Estado del proyecto
 
-**Última actualización:** 2026-10-19
+**Última actualización:** 2026-10-28
 
 ## Resumen
 
@@ -73,6 +73,11 @@ siguiente etapa es su validación meteorológica y visual.
 - La animación ParaView de jet usa `ugrdprs`, `vgrdprs` y `hgtprs` entre 500 y
   50 hPa. La carga interactiva y el render batch se verificaron manualmente
   con la corrida GFS de 2026-08-16.
+- La preparación ParaView materializa un PVD con todos los VTS temporales. La
+  plantilla interactiva y el batch consumen esa misma colección, por lo que la
+  revisión gráfica expone todos los plazos y el render no reemplaza VTS
+  manualmente. Se comprobó con EGL la carga y el render de los plazos inicial
+  y final de una colección de 41 tiempos.
 - El ambiente `metvis3d-test`, creado desde `environment.yml`, reúne Python
   3.14, Met.3D 2.0.0b11, ParaView 6.2.0, FFmpeg y las dependencias de
   estandarización. Importó los módulos científicos y del proyecto sin errores.

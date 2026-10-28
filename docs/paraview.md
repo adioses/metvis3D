@@ -22,7 +22,8 @@ niveles isobáricos; no se aplica una transformación logarítmica adicional.
 
 ## Preparación
 
-Desde la raíz del proyecto, prepare los VTS y la configuración transitoria:
+Desde la raíz del proyecto, prepare el terreno, los VTS de todos los plazos,
+la colección temporal PVD y la configuración transitoria:
 
 ```bash
 conda run -n metvis3d python scripts/run_paraview_animation.py \
@@ -31,7 +32,9 @@ conda run -n metvis3d python scripts/run_paraview_animation.py \
   --prepare-only
 ```
 
-Los datos temporales se sobrescriben por capa bajo:
+Los datos temporales se sobrescriben por capa bajo. Para el jet, `jet.pvd`
+asocia cada VTS con su plazo de pronóstico y es la fuente temporal utilizada
+tanto por la interfaz como por el render batch:
 
 ```text
 paraview/render_data/south_america/terrain/
@@ -56,9 +59,11 @@ os.environ["METVIS3D_PARAVIEW_CONFIGURATION"] = (
 )
 ```
 
-La plantilla carga el primer plazo de las capas preparadas y aplica la misma
-cámara del batch. Ajuste la vista en ParaView y obtenga sus valores desde la
-Python Shell:
+La plantilla limpia la sesión actual, carga todas las capas y configura el
+control temporal de ParaView con los plazos de `jet.pvd`. Use la barra de
+tiempo para revisar o reproducir la secuencia completa. La vista usa la misma
+resolución, relación de aspecto y cámara del batch. Ajuste la vista en
+ParaView y obtenga sus valores desde la Python Shell:
 
 ```python
 view = GetActiveView()
@@ -83,8 +88,9 @@ conda run -n metvis3d python scripts/run_paraview_animation.py \
   --render
 ```
 
-El render batch usa EGL explícitamente junto con el modo offscreen, por lo que
-no depende de `DISPLAY`, de una sesión gráfica ni del reenvío X11 de SSH.
+El render batch usa la misma colección PVD que la revisión interactiva, EGL
+explícito y el modo offscreen. No depende de `DISPLAY`, de una sesión gráfica
+ni del reenvío X11 de SSH, y no incorpora preferencias personales de ParaView.
 
 El MP4 histórico queda en
 `outputs/paraview/south_america_jet/<centro>-<modelo>/`.

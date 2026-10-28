@@ -526,7 +526,7 @@ def prepare_animation(project_root: Path, animation_file: Path, netcdf_file: Pat
             {
                 "name": "jet",
                 "type": "wind_speed_isosurface",
-                "frame_files": [str(frame_file.resolve()) for frame_file in jet_files["frames"]],
+                "collection_file": str(files["jet_collection"].resolve()),
                 "isosurface": {
                     "value_m_s": float(require_value(jet, ("isosurface", "value_m_s"), f"del jet de {product_name}")),
                     "color": jet_color,
@@ -579,6 +579,7 @@ def render_animation(preparation: dict[str, object], pvpython_executable: str) -
     renderer_file = Path(__file__).resolve().parents[3] / "paraview" / "scripts" / "render_animation.py"
     command = [
         pvpython_executable,
+        "--disable-registry",
         "--force-offscreen-rendering",
         "--opengl-window-backend",
         "EGL",

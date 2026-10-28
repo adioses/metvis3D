@@ -29,12 +29,9 @@ def run_animation(arguments: argparse.Namespace) -> None:
 
     if arguments.prepare_only:
         return
-    if arguments.render:
-        print("Generando fotogramas PNG con ParaView...", flush=True)
-        video_file = render_animation(preparation, arguments.pvpython)
-        print(f"Video generado: {video_file}")
-        return
-    print("Abra ParaView con METVIS3D_PARAVIEW_CONFIGURATION y ejecute paraview/templates/open_prepared_animation.py.")
+    print("Generando fotogramas PNG con ParaView...", flush=True)
+    video_file = render_animation(preparation, arguments.pvpython)
+    print(f"Video generado: {video_file}")
 
 
 if __name__ == "__main__":
@@ -47,7 +44,7 @@ if __name__ == "__main__":
     )
     parser.add_argument("--netcdf", type=Path, required=True, help="NetCDF estandarizado de una corrida completa.")
     parser.add_argument("--pvpython", default="pvpython", help="Comando pvpython para renderizar sin interfaz.")
-    action = parser.add_mutually_exclusive_group()
-    action.add_argument("--prepare-only", action="store_true", help="Genera los datos y el script para el Python Shell de ParaView.")
+    action = parser.add_mutually_exclusive_group(required=True)
+    action.add_argument("--prepare-only", action="store_true", help="Genera los datos para la revisión gráfica o el render batch.")
     action.add_argument("--render", action="store_true", help="Renderiza los fotogramas y codifica el MP4.")
     run_animation(parser.parse_args())
