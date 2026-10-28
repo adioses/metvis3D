@@ -580,6 +580,8 @@ def render_animation(preparation: dict[str, object], pvpython_executable: str) -
     command = [
         pvpython_executable,
         "--force-offscreen-rendering",
+        "--opengl-window-backend",
+        "EGL",
         str(renderer_file),
         "--configuration",
         str(files["render_configuration"]),

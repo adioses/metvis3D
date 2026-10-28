@@ -1,0 +1,30 @@
+model:
+  id: wrf
+  center: ncep
+
+source:
+  directory_template: data/raw/WRF/{date}{cycle_hour}
+  file_template: WRFPRS_d01.{forecast_hour:02d}
+  forecast_schedule:
+    - first_hour: 0
+      last_hour: 120
+      step_hours: 3
+
+standardization:
+  longitude_range: "0_360"
+
+# Selección inicial confirmada por el inventario de la corrida WRF.
+selected_variables:
+  - ugrdprs
+  - vgrdprs
+  - vvelprs
+  - tcdcclm
+  - tmpprs
+  - rhprs
+  - spfhprs
+  - hgtprs
+  - tmp2m
+  - ugrd10m
+  - vgrd10m
+  - pressfc
+  - apcpsfc

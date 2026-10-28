@@ -83,6 +83,9 @@ conda run -n metvis3d python scripts/run_paraview_animation.py \
   --render
 ```
 
+El render batch usa EGL explícitamente junto con el modo offscreen, por lo que
+no depende de `DISPLAY`, de una sesión gráfica ni del reenvío X11 de SSH.
+
 El MP4 histórico queda en
 `outputs/paraview/south_america_jet/<centro>-<modelo>/`.
 

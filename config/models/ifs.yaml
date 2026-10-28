@@ -14,7 +14,7 @@ source:
       step_hours: 6
 
 standardization:
-  longitude_range: "-180_180"
+  longitude_range: "0_360"
 
 selected_variables:
   - ugrdprs
@@ -23,9 +23,10 @@ selected_variables:
   - tcdcclm
   - tmpprs
   - rhprs
+  - spfhprs
   - hgtprs
   - tmp2m
   - ugrd10m
   - vgrd10m
-  - prmslmsl
+  - pressfc
   - apcpsfc

@@ -1,0 +1,30 @@
+model:
+  id: eta
+  center: ncep
+
+source:
+  directory_template: data/raw/ETA/{date}{cycle_hour}
+  file_template: latlon_{forecast_hour:03d}
+  forecast_schedule:
+    - first_hour: 0
+      last_hour: 240
+      step_hours: 6
+
+standardization:
+  longitude_range: "0_360"
+
+# Selección inicial confirmada por el inventario de la corrida ETA.
+selected_variables:
+  - ugrdprs
+  - vgrdprs
+  - vvelprs
+  - tcdcclm
+  - tmpprs
+  - rhprs
+  - spfhprs
+  - hgtprs
+  - tmp2m
+  - ugrd10m
+  - vgrd10m
+  - pressfc
+  - apcpsfc
