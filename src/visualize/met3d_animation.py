@@ -156,10 +156,11 @@ def render_template(template_environment: Environment, template_name: str, outpu
 def prepare_runtime_session(
     session_source_file: Path,
     runtime_directory: Path,
+    frames_directory: Path,
     animation: dict,
     for_render: bool,
 ) -> Path:
-    """Copia la sesión base y aplica cámara, resolución y captura de la animación."""
+    """Copia la sesión base y aplica cámara, resolución y directorio temporal."""
 
     if not session_source_file.exists():
         raise RuntimeError(
@@ -175,7 +176,7 @@ def prepare_runtime_session(
     if not isinstance(camera, dict) or not isinstance(output, dict):
         raise RuntimeError(f"La cámara y la salida de {animation_name} deben ser mapas YAML.")
 
-    camera_settings = {
+    session_settings = {
         "MSceneViews\\MSceneView_0\\MCamera\\origin_lon": require_value(camera, ("origin", "longitude"), f"de animación {animation_name}"),
         "MSceneViews\\MSceneView_0\\MCamera\\origin_lat": require_value(camera, ("origin", "latitude"), f"de animación {animation_name}"),
         "MSceneViews\\MSceneView_0\\MCamera\\origin_worldZ": require_value(camera, ("origin", "world_z"), f"de animación {animation_name}"),
@@ -187,12 +188,13 @@ def prepare_runtime_session(
         "MSceneViews\\MSceneView_0\\MCamera\\zAxis_worldZ": require_value(camera, ("z_axis", "world_z"), f"de animación {animation_name}"),
         "MSceneViews\\MSceneView_0\\custom_resolution_width": require_value(output, ("width_px",), f"de animación {animation_name}"),
         "MSceneViews\\MSceneView_0\\custom_resolution_height": require_value(output, ("height_px",), f"de animación {animation_name}"),
+        "Animation\\save_directory": frames_directory.resolve(),
     }
 
     session_lines = runtime_session_file.read_text(encoding="utf-8").splitlines(keepends=True)
-    settings_found = {setting: False for setting in camera_settings}
+    settings_found = {setting: False for setting in session_settings}
     for line_index, line in enumerate(session_lines):
-        for setting, value in camera_settings.items():
+        for setting, value in session_settings.items():
             if line.startswith(f"{setting}="):
                 ending = "\n" if line.endswith("\n") else ""
                 session_lines[line_index] = f"{setting}={value}{ending}"
@@ -366,9 +368,15 @@ def prepare_animation(
     )
     dataset_name = str(require_value(animation, ("dataset_name",), f"de animación {product_name}"))
     session_source_file = project_root / str(require_value(animation, ("session_file",), f"de animación {product_name}"))
-    session_file = prepare_runtime_session(session_source_file, runtime_directory, animation, for_render)
     frames_directory = runtime_directory / "frames"
     frames_directory.mkdir()
+    session_file = prepare_runtime_session(
+        session_source_file,
+        runtime_directory,
+        frames_directory,
+        animation,
+        for_render,
+    )
     context = {
         "dataset_name": dataset_name,
         "netcdf_directory": netcdf_file.parent.resolve(),

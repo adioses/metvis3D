@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import os
 from pathlib import Path
 
 from paraview.simple import (
@@ -53,15 +52,8 @@ def render_frames(view, temporal_layers: dict[str, dict], configuration: dict) -
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Renderiza una animación desde una configuración transitoria de ParaView.")
-    parser.add_argument(
-        "--configuration",
-        type=Path,
-        default=os.environ.get("METVIS3D_PARAVIEW_CONFIGURATION"),
-        help="JSON transitorio de la animación.",
-    )
+    parser.add_argument("--configuration", type=Path, required=True, help="JSON transitorio de la animación.")
     arguments = parser.parse_args()
-    if arguments.configuration is None:
-        parser.error("Debe indicar --configuration o METVIS3D_PARAVIEW_CONFIGURATION.")
     configuration = load_configuration(arguments.configuration)
     ResetSession()
     _DisableFirstRenderCameraReset()

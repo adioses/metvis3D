@@ -3,7 +3,7 @@ model:
   center: ncep
 
 source:
-  directory_template: data/raw/ETA/{date}{cycle_hour}
+  directory_template: data/raw/ETA32/{date}{cycle_hour}
   file_template: latlon_{forecast_hour:03d}
   forecast_schedule:
     - first_hour: 0

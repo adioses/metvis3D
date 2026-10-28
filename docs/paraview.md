@@ -41,25 +41,23 @@ paraview/render_data/south_america/terrain/
 paraview/render_data/south_america/jet/
 ```
 
-La configuración transitoria y los fotogramas de la última ejecución de la
-escena se guardan en `paraview/render_cache/south_america/`.
+La configuración transitoria, el script de apertura y los fotogramas de la
+última ejecución de la escena se guardan en `paraview/render_cache/south_america/`.
 
 ## Revisión interactiva y ajuste de cámara
 
-Abra ParaView, defina en su Python Shell la configuración preparada y ejecute
-la plantilla `paraview/templates/open_prepared_animation.py` mediante
-**View > Python Shell > Run Script**:
+Abra ParaView y ejecute mediante **View > Python Shell > Run Script** el
+script generado por la preparación:
 
-```python
-import os
-
-os.environ["METVIS3D_PARAVIEW_CONFIGURATION"] = (
-    "/home/alen/Documents/Senamhi/metvis3D/"
-    "paraview/render_cache/south_america/render_configuration.json"
-)
+```text
+paraview/render_cache/south_america/open_prepared_animation.py
 ```
 
-La plantilla limpia la sesión actual, carga todas las capas y configura el
+El script está junto a `render_configuration.json`, por lo que carga la
+configuración recién preparada sin declarar `METVIS3D_PARAVIEW_CONFIGURATION`
+ni escribir una ruta absoluta de la máquina.
+
+El script limpia la sesión actual, carga todas las capas y configura el
 control temporal de ParaView con los plazos de `jet.pvd`. Use la barra de
 tiempo para revisar o reproducir la secuencia completa. La vista usa la misma
 resolución, relación de aspecto y cámara del batch. Ajuste la vista en

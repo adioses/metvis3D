@@ -1,6 +1,5 @@
-"""Carga en la vista activa una animación ParaView previamente preparada."""
+"""Carga una animación ParaView desde el directorio transitorio preparado."""
 
-import os
 import sys
 from pathlib import Path
 
@@ -13,23 +12,23 @@ from paraview.simple import (
 )
 
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-SCRIPTS_DIRECTORY = PROJECT_ROOT / "paraview" / "scripts"
+RENDER_DIRECTORY = Path(__file__).resolve().parent
+SCRIPTS_DIRECTORY = RENDER_DIRECTORY.parents[1] / "scripts"
 sys.path.insert(0, str(SCRIPTS_DIRECTORY))
 
 from scene_setup import create_scene, load_configuration
 
 
 def open_prepared_animation() -> None:
-    """Carga las capas del JSON transitorio indicado al iniciar ParaView."""
+    """Carga las capas del JSON transitorio que acompaña a este script."""
 
-    configuration_name = os.environ.get("METVIS3D_PARAVIEW_CONFIGURATION")
-    if configuration_name is None:
+    configuration_file = RENDER_DIRECTORY / "render_configuration.json"
+    if not configuration_file.exists():
         raise RuntimeError(
-            "Defina METVIS3D_PARAVIEW_CONFIGURATION con el render_configuration.json "
-            "generado por scripts/run_paraview_animation.py."
+            "No existe render_configuration.json junto al script de apertura. "
+            "Prepare la animación y ejecute el script generado en paraview/render_cache/."
         )
-    configuration = load_configuration(Path(configuration_name))
+    configuration = load_configuration(configuration_file)
     ResetSession()
     _DisableFirstRenderCameraReset()
     view = GetActiveViewOrCreate("RenderView")

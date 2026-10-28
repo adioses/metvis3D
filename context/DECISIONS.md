@@ -91,19 +91,21 @@ campos, niveles ni grilla.
 
 ## D-010 — Flujo actual de animaciones con Met.3D
 
-**Fecha:** 2026-10-19
+**Fecha:** 2026-10-19, actualizada 2026-10-28
 **Decisión:** Met.3D opera de forma independiente bajo `config/met3d/`, con
 escenas, animaciones, sesiones y runtime propios. DANA y jet usan el motor
 común `src/visualize/met3d_animation.py`; sus lanzadores reciben un NetCDF
 estandarizado y materializan configuraciones temporales por corrida.
 
 **Impacto:** el runtime se limita a `met3D/.runtime/`; los MP4 históricos se
-guardan bajo `outputs/met3d/`. Las cámaras, objetos, intervalos de presión y
-salida se mantienen en los YAML de cada animación, sin intervenir en ParaView.
+guardan bajo `outputs/met3d/`. La copia runtime asigna su directorio de
+fotogramas a la sesión, por lo que la sesión base no contiene rutas de usuario.
+Las cámaras, objetos, intervalos de presión y salida se mantienen en los YAML
+de cada animación, sin intervenir en ParaView.
 
 ## D-011 — Flujo actual de animaciones con ParaView
 
-**Fecha:** 2026-10-19
+**Fecha:** 2026-10-19, actualizada 2026-10-28
 **Decisión:** ParaView opera de forma independiente bajo `config/paraview/`.
 Una escena define geografía, proyección, DEM y estilo; una animación define
 capas, variables, intervalos verticales, cámara, línea de tiempo y salida. La
@@ -112,9 +114,11 @@ lógica científica se organiza en `src/visualize/paraview/`.
 **Impacto:** los temporales se organizan por escena y capa en
 `paraview/render_data/`; los fotogramas transitorios de una escena se guardan
 en `paraview/render_cache/`; los MP4 históricos se almacenan en
-`outputs/paraview/`. La capa jet construye su geometría desde `hgtprs` y puede
-completar únicamente huecos aislados declarados en su YAML, sin alterar el
-NetCDF estandarizado.
+`outputs/paraview/`. La preparación genera un script transitorio junto a su
+JSON para abrir la escena en ParaView, sin requerir una variable de entorno ni
+una ruta absoluta local. La capa jet construye su geometría desde `hgtprs` y
+puede completar únicamente huecos aislados declarados en su YAML, sin alterar
+el NetCDF estandarizado.
 
 ## D-012 — Ambiente Conda unificado para visualización 3D
 

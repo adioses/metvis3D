@@ -4,7 +4,8 @@ Met.3D mantiene un flujo independiente para explorar y generar videos
 meteorológicos desde un NetCDF estandarizado. Cada animación declara su escena,
 variables, objetos, cámara, línea de tiempo y salida bajo
 `config/met3d/animations/`; las configuraciones temporales se generan en
-`met3D/.runtime/` y no se versionan.
+`met3D/.runtime/` y no se versionan. La copia runtime asigna su directorio de
+fotogramas a la sesión, por lo que la sesión base no contiene rutas de usuario.
 
 ## Animaciones disponibles
 

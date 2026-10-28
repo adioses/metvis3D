@@ -3,7 +3,7 @@ model:
   center: ncep
 
 source:
-  directory_template: data/raw/WRF/{date}{cycle_hour}
+  directory_template: data/raw/WRF33/{date}{cycle_hour}
   file_template: WRFPRS_d01.{forecast_hour:02d}
   forecast_schedule:
     - first_hour: 0

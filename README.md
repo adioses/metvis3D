@@ -32,6 +32,12 @@ modo de sólo lectura. No deben copiarse, moverse ni modificarse desde los
 procesos del proyecto. Los índices `.idx` de cfgrib se crean junto a cada GRIB
 original.
 
+La raíz del proyecto puede ubicarse en cualquier ruta de la workstation o del
+HPC. En esos ambientes, los GRIB2 deben estar disponibles bajo `data/raw/` con
+la jerarquía definida por los YAML de `config/models/`, preferiblemente mediante
+un montaje de sólo lectura. Las configuraciones no contienen rutas de usuario
+ni rutas absolutas de una máquina.
+
 `paraview/render_data/` contiene datos temporales preparados exclusivamente
 para ParaView. `paraview/render_cache/` contiene los fotogramas de trabajo.
 Ambos directorios son descartables; los videos aprobados se escriben en

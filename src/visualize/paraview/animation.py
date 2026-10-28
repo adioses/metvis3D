@@ -547,6 +547,9 @@ def prepare_animation(project_root: Path, animation_file: Path, netcdf_file: Pat
     configuration_file = render_directory / "render_configuration.json"
     configuration_file.write_text(json.dumps(render_configuration, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     files["render_configuration"] = configuration_file
+    open_script = render_directory / "open_prepared_animation.py"
+    shutil.copy2(project_root / "paraview" / "templates" / "open_prepared_animation.py", open_script)
+    files["open_script"] = open_script
     video_file = (
         project_root
         / "outputs"

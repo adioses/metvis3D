@@ -84,6 +84,12 @@ siguiente etapa es su validación meteorológica y visual.
   revisión gráfica expone todos los plazos y el render no reemplaza VTS
   manualmente. Se comprobó con EGL la carga y el render de los plazos inicial
   y final de una colección de 41 tiempos.
+- La preparación ParaView conserva únicamente los temporales vigentes por
+  escena y capa. Genera en `paraview/render_cache/<escena>/` un script de
+  apertura asociado a su JSON, de modo que la revisión interactiva no requiere
+  declarar una variable de entorno ni una ruta absoluta local.
+- La sesión base de Met.3D no contiene rutas de usuario; cada runtime dirige
+  sus imágenes al directorio temporal que corresponde a la ejecución actual.
 - El ambiente `metvis3d-test`, creado desde `environment.yml`, reúne Python
   3.14, Met.3D 2.0.0b11, ParaView 6.2.0, FFmpeg y las dependencias de
   estandarización. Importó los módulos científicos y del proyecto sin errores.
