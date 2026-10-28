@@ -5,7 +5,7 @@ scene: config/met3d/scenes/south_america.yaml
 
 # Identificadores estables para cualquier modelo y fecha estandarizados.
 dataset_name: standardized_data
-session_file: met3D/sessions/south_america_dana_base.session.config
+session_file: met3D/sessions/south_america_base.session.config
 
 variables:
   wind_u: ugrdprs

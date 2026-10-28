@@ -15,6 +15,9 @@ from jinja2 import Environment, FileSystemLoader, StrictUndefined
 from netCDF4 import Dataset, num2date
 
 
+XVFB_SERVER_ARGUMENTS = "-screen 0 1920x1080x24 +extension GLX +render -noreset"
+
+
 def load_yaml_configuration(configuration_file: Path, description: str) -> dict:
     """Lee una configuración YAML y detiene el flujo si no es un mapa."""
 
@@ -354,7 +357,7 @@ def prepare_animation(
         scene["bounding_boxes"][object_name] = bounding_box["name"]
         configuration["bounding_box_index"] = bounding_box["index"]
 
-    # Renderizar configuraciones de escena, objetos, cámara y modo batch.
+    # Renderizar configuraciones de escena, objetos y modo batch.
     template_directory = project_root / "met3D" / "templates"
     template_environment = Environment(
         loader=FileSystemLoader(template_directory),
@@ -372,7 +375,6 @@ def prepare_animation(
         "netcdf_filename": netcdf_file.name,
         "variables": variables,
         "scene": scene,
-        "camera": animation["camera"],
         "derived_variable_mappings": derived_variable_mappings,
         "object_bounding_boxes": object_bounding_boxes,
         "potential_vorticity": potential_vorticity,
@@ -388,7 +390,6 @@ def prepare_animation(
         "bounding_boxes": render_template(template_environment, "bounding_boxes.bbox.conf.j2", runtime_directory / "bounding_boxes.bbox.conf", context),
         "basemap": render_template(template_environment, "basemap.actor.conf.j2", runtime_directory / "basemap.actor.conf", context),
         "volume": render_template(template_environment, "volume_bounding_box.actor.conf.j2", runtime_directory / "volume_bounding_box.actor.conf", context),
-        "camera": render_template(template_environment, "camera.conf.j2", runtime_directory / "camera.conf", context),
         "batch": render_template(template_environment, "batch_mode.batch.conf.j2", runtime_directory / "batch_mode.batch.conf", context),
     }
     actor_files = [files[name] for name in ("basemap", "volume")]
@@ -514,8 +515,8 @@ def render_animation(preparation: dict[str, object], conda_executable: str, envi
     if not isinstance(session_file, Path) or not session_file.exists():
         expected_session = session_source_file if isinstance(session_source_file, Path) else session_file
         raise RuntimeError(
-            "No existe la sesión base. Abra la escena y guarde la sesión en "
-            f"{expected_session} antes de usar --render."
+            "No existe la sesión base requerida para renderizar: "
+            f"{expected_session}."
         )
     files = preparation["files"]
     actor_files = preparation["actor_files"]
@@ -525,7 +526,7 @@ def render_animation(preparation: dict[str, object], conda_executable: str, envi
     if not isinstance(files, dict) or not isinstance(actor_files, list) or not isinstance(animation, dict) or not isinstance(frames_directory, Path) or not isinstance(video_file, Path):
         raise RuntimeError("La preparación no contiene los archivos necesarios para renderizar.")
 
-    command = [
+    met3d_command = [
         conda_executable,
         "run",
         "--no-capture-output",
@@ -539,12 +540,23 @@ def render_animation(preparation: dict[str, object], conda_executable: str, envi
         "--batch",
         str(files["batch"]),
     ]
+    command = [
+        "xvfb-run",
+        "-a",
+        f"--server-args={XVFB_SERVER_ARGUMENTS}",
+        *met3d_command,
+    ]
     try:
         subprocess.run(command, check=True, env=met3d_environment(preparation, conda_executable, environment_name))
     except FileNotFoundError as error:
-        raise RuntimeError(f"No se encontró el comando Conda: {conda_executable}") from error
+        raise RuntimeError(
+            "No se encontró xvfb-run. El render batch de Met.3D requiere Xvfb y un contexto OpenGL funcional."
+        ) from error
     except subprocess.CalledProcessError as error:
-        raise RuntimeError("Met.3D no pudo renderizar los fotogramas de la animación.") from error
+        raise RuntimeError(
+            "Met.3D no pudo renderizar los fotogramas bajo Xvfb. Revise el detalle previo: "
+            "el render batch requiere un contexto OpenGL funcional."
+        ) from error
 
     frame_glob = frames_directory / "frame-FN*.png"
     if not list(frames_directory.glob("frame-FN*.png")):

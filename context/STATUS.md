@@ -65,6 +65,12 @@ siguiente etapa es su validación meteorológica y visual.
   lanzadores `scripts/run_met3d_dana.py` y `scripts/run_met3d_jet.py`. DANA y
   jet preparan un runtime temporal propio y guardan sus MP4 históricos en
   `outputs/met3d/`.
+- Los lanzadores Met.3D exponen `--open` para revisar la escena en una estación
+  gráfica y `--render` para el batch. Ambas acciones reconstruyen el runtime
+  de la corrida; el batch se configuró bajo Xvfb con su contexto OpenGL
+  virtual, mientras que la cámara se aplica desde el YAML directamente a la
+  copia de sesión. Se eliminó el `camera.conf` que no era consumido por Met.3D
+  y se unificó la sesión base de DANA y jet como `south_america_base`.
 - ParaView utiliza exclusivamente `config/paraview/scenes/`,
   `config/paraview/animations/`, `src/visualize/paraview/` y
   `scripts/run_paraview_animation.py`. Sus datos temporales se organizan por

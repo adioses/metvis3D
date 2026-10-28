@@ -23,28 +23,26 @@ que necesita.
 - Un NetCDF estandarizado de una corrida completa.
 - Un ambiente Conda Linux creado desde `environment.yml`, con el binario
   `Met3D` instalado. El ambiente operativo se denomina `metvis3d`.
-- La sesión base `met3D/sessions/south_america_dana_base.session.config`.
+- La sesión base `met3D/sessions/south_america_base.session.config`.
+- Para el render batch sin interfaz gráfica, `xvfb-run`. Met.3D requiere un
+  contexto OpenGL funcional y no tiene un modo alternativo de render solo con
+  CPU.
 
 Los comandos siguientes se ejecutan desde la raíz del proyecto.
 
 ## DANA
 
-Preparar los archivos temporales sin abrir Met.3D:
+Abrir la escena en una estación de trabajo con interfaz gráfica para revisar
+los objetos y ajustar la cámara:
 
 ```bash
 conda run -n metvis3d python scripts/run_met3d_dana.py \
   --netcdf data/standardized/ncep-gfs_20260816_00Z.nc \
-  --prepare-only
+  --open
 ```
 
-Abrir la escena para revisarla:
-
-```bash
-conda run -n metvis3d python scripts/run_met3d_dana.py \
-  --netcdf data/standardized/ncep-gfs_20260816_00Z.nc
-```
-
-Renderizar todos los plazos y codificar el MP4:
+Renderizar todos los plazos y codificar el MP4, incluso por SSH, cron u otro
+servicio sin interfaz gráfica:
 
 ```bash
 conda run -n metvis3d python scripts/run_met3d_dana.py \
@@ -54,20 +52,21 @@ conda run -n metvis3d python scripts/run_met3d_dana.py \
 
 El video se conserva bajo `outputs/met3d/dana/<centro>-<modelo>/`.
 
+Ambas acciones preparan el runtime transitorio antes de iniciar Met.3D. No hay
+una acción pública de preparación aislada: el runtime debe corresponder al
+NetCDF y a la configuración de la ejecución actual.
+
 ## Jet
 
-Preparar, abrir o renderizar el jet usa el mismo patrón:
+Abrir el jet para su revisión visual:
 
 ```bash
 conda run -n metvis3d python scripts/run_met3d_jet.py \
   --netcdf data/standardized/ncep-gfs_20260816_00Z.nc \
-  --prepare-only
+  --open
 ```
 
-```bash
-conda run -n metvis3d python scripts/run_met3d_jet.py \
-  --netcdf data/standardized/ncep-gfs_20260816_00Z.nc
-```
+Renderizarlo en batch:
 
 ```bash
 conda run -n metvis3d python scripts/run_met3d_jet.py \
@@ -76,6 +75,15 @@ conda run -n metvis3d python scripts/run_met3d_jet.py \
 ```
 
 El video se conserva bajo `outputs/met3d/jet/<centro>-<modelo>/`.
+
+Durante `--render`, el lanzador crea automáticamente la pantalla virtual con:
+
+```bash
+xvfb-run -a --server-args="-screen 0 1920x1080x24 +extension GLX +render -noreset"
+```
+
+La pantalla virtual sólo se usa para el render batch. `--open` conserva la
+interfaz nativa y debe ejecutarse en una máquina gráfica.
 
 Para validar un ambiente con otro nombre, conserve el ambiente que ejecuta
 Python y especifique el mismo nombre para Met.3D. Por ejemplo, para
@@ -87,11 +95,11 @@ La cámara pertenece al YAML de cada animación, no a la sesión base. Sus nueve
 componentes se encuentran en `camera.origin`, `camera.y_axis` y
 `camera.z_axis`. Para ajustar una toma:
 
-1. Abra la animación con el comando sin `--render`.
-2. Ajuste la vista en Met.3D y guarde los valores aprobados de la cámara en la
-   copia runtime de la sesión.
-3. Copie esos nueve valores al bloque `camera` del YAML de la animación.
-4. Ejecute de nuevo con `--prepare-only` y compruebe la toma antes del batch.
+1. Abra la animación con `--open` en una estación de trabajo gráfica.
+2. Ajuste la vista en Met.3D y obtenga los nueve valores de su cámara.
+3. Copie esos valores al bloque `camera` del YAML de la animación.
+4. Ejecute otra vez `--open` para comprobar la toma y finalmente `--render`
+   para generar el video.
 
 La sesión base no debe editarse para cambiar una cámara. El flujo copia la
 sesión al runtime de la corrida y aplica allí la cámara, resolución y captura

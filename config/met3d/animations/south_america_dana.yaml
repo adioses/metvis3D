@@ -8,7 +8,7 @@ scene: config/met3d/scenes/south_america.yaml
 dataset_name: standardized_data
 # Sesión base nativa: sólo vista, cámara y controles temporales. Los objetos
 # y cajas provienen siempre de los .conf renderizados para cada corrida.
-session_file: met3D/sessions/south_america_dana_base.session.config
+session_file: met3D/sessions/south_america_base.session.config
 
 variables:
   air_temperature: tmpprs

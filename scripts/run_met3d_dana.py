@@ -30,9 +30,6 @@ def run_animation(arguments: argparse.Namespace) -> None:
     for name, filename in files.items():
         print(f"- {name}: {filename}")
 
-    if arguments.prepare_only:
-        return
-
     # Abrir interfaz para validar la escena o ejecutar el batch solicitado.
     if arguments.render:
         video_file = render_animation(preparation, arguments.conda, arguments.met3d_environment)
@@ -53,7 +50,7 @@ if __name__ == "__main__":
     parser.add_argument("--netcdf", type=Path, required=True, help="NetCDF estandarizado de una corrida completa.")
     parser.add_argument("--conda", default="conda", help="Comando Conda que contiene Met.3D.")
     parser.add_argument("--met3d-environment", default="metvis3d", help="Nombre del ambiente Conda que contiene Met.3D.")
-    action = parser.add_mutually_exclusive_group()
-    action.add_argument("--prepare-only", action="store_true", help="Genera configuraciones sin abrir Met.3D.")
+    action = parser.add_mutually_exclusive_group(required=True)
+    action.add_argument("--open", action="store_true", help="Abre Met.3D para revisar la escena y ajustar la cámara.")
     action.add_argument("--render", action="store_true", help="Renderiza los fotogramas y codifica el MP4.")
     run_animation(parser.parse_args())
