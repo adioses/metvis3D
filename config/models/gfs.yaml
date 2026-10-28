@@ -11,7 +11,7 @@ source:
       step_hours: 3
 
 standardization:
-  longitude_range: "0_360"
+  longitude_range: "-180_180"
 
 # Esta selección es inicial y se ampliará al definir los productos audiovisuales.
 selected_variables:

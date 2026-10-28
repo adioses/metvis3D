@@ -8,10 +8,10 @@ source:
   forecast_schedule:
     - first_hour: 0
       last_hour: 120
-      step_hours: 3
+      step_hours: 6
 
 standardization:
-  longitude_range: "0_360"
+  longitude_range: "-180_180"
 
 # Selección inicial confirmada por el inventario de la corrida WRF.
 selected_variables:

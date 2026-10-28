@@ -11,7 +11,7 @@ source:
       step_hours: 6
 
 standardization:
-  longitude_range: "0_360"
+  longitude_range: "-180_180"
 
 # Selección inicial confirmada por el inventario de la corrida ETA.
 selected_variables:
