@@ -3,7 +3,7 @@ model:
   center: ncep
 
 source:
-  directory_template: data/raw/GFS27/{date}{cycle_hour}
+  directory_template: data/raw/GFS/{date}{cycle_hour}
   file_template: gfs.t{cycle_hour}z.pgrb2.0p25.f{forecast_hour:03d}
   forecast_schedule:
     - first_hour: 0
