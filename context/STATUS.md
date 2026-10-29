@@ -1,6 +1,6 @@
 # Estado del proyecto
 
-**Última actualización:** 2026-10-28
+**Última actualización:** 2026-10-29
 
 ## Resumen
 
@@ -97,6 +97,11 @@ siguiente etapa es su validación meteorológica y visual.
   ParaView, para `ncep-gfs_20260816_00Z.nc`. Los tres MP4 tienen 81
   fotogramas H.264 de 1920×1080 y 8.1 s. Met.3D obtuvo OpenGL 4.6; ParaView
   aplicó la política YAML para diez huecos aislados de `hgtprs` a 250 hPa.
+- DANA incorpora una sección horizontal configurable con PV, líneas de viento
+  y geopotencial opcional. Se comprobó en Met.3D 2.0.0b11 el render de los
+  primeros plazos de GFS del 2026-08-16 y la selección de 400 hPa cuando se
+  solicitan 375 hPa, equidistantes entre 350 y 400 hPa. Queda pendiente la
+  revisión meteorológica y visual de la composición para el evento completo.
 
 ## Siguiente actividad
 

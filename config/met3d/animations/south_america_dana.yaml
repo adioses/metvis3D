@@ -15,6 +15,7 @@ variables:
   wind_u: ugrdprs
   wind_v: vgrdprs
   surface_pressure: pressfc
+  geopotential_height: hgtprs
 
 objects:
   surface_pressure:
@@ -26,6 +27,29 @@ objects:
       bottom_hpa: 500.0
       top_hpa: 250.0
     isosurface_pvu: -5.0
+    opacity: 0.45
+
+  horizontal_section:
+    enabled: true
+    pressure_hpa: 350.0
+    potential_vorticity:
+      minimum_pvu: -10.0
+      maximum_pvu: -2.0
+      colour_steps: 8
+      hue: 290.0
+      dark_luminance: 30.0
+      light_luminance: 85.0
+      chroma: 60.0
+    wind:
+      spacing_degrees: 2.0
+      min_length_degrees: 0.1
+      max_length_degrees: 0.75
+      line_width: 0.04
+    geopotential_height:
+      enabled: true
+      minimum_gpm: 0.0
+      maximum_gpm: 26000.0
+      interval_gpm: 120.0
 
 # La orientación se almacena en el formato nativo y legible de cámara de
 # Met.3D. origin es la posición de cámara; los ejes y/z fijan su orientación.

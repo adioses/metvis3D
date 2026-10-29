@@ -271,6 +271,7 @@ def prepare_animation(
 
     surface_pressure = get_enabled_object(objects, "surface_pressure", product_name)
     potential_vorticity = get_enabled_object(objects, "potential_vorticity", product_name)
+    horizontal_section = get_enabled_object(objects, "horizontal_section", product_name)
     jet = get_enabled_object(objects, "jet", product_name)
     if potential_vorticity is None and jet is None:
         raise RuntimeError(f"La animación {product_name} debe habilitar al menos un objeto tridimensional.")
@@ -290,6 +291,9 @@ def prepare_animation(
         require_value(potential_vorticity, ("pressure", "bottom_hpa"), f"del objeto PV de {product_name}")
         require_value(potential_vorticity, ("pressure", "top_hpa"), f"del objeto PV de {product_name}")
         require_value(potential_vorticity, ("isosurface_pvu",), f"del objeto PV de {product_name}")
+        opacity = float(require_value(potential_vorticity, ("opacity",), f"del objeto PV de {product_name}"))
+        if not 0.0 <= opacity <= 1.0:
+            raise RuntimeError(f"La opacidad de la isosuperficie de PV de {product_name} debe estar entre 0 y 1.")
     if jet is not None:
         for variable_name in ("wind_u", "wind_v"):
             variable = str(require_value(variables, (variable_name,), f"de animación {product_name}"))
@@ -308,13 +312,50 @@ def prepare_animation(
         surface_pressure_variable = str(require_value(variables, ("surface_pressure",), f"de animación {product_name}"))
         required_variables.append(surface_pressure_variable)
         derived_variable_mappings.append(f"surface_air_pressure:{surface_pressure_variable}")
+    if horizontal_section is not None:
+        if potential_vorticity is None:
+            raise RuntimeError(f"La sección horizontal de {product_name} requiere la PV habilitada.")
+        for key in ("pressure_hpa", "potential_vorticity", "wind", "geopotential_height"):
+            require_value(horizontal_section, (key,), f"de la sección horizontal de {product_name}")
+        geopotential_height = horizontal_section["geopotential_height"]
+        if require_value(geopotential_height, ("enabled",), f"de geopotencial de {product_name}"):
+            required_variables.append(str(require_value(variables, ("geopotential_height",), f"de animación {product_name}")))
     require_value(animation, ("camera",), f"de animación {product_name}")
 
     # Revisar la corrida NetCDF y derivar su identidad, fecha y duración.
     metadata = read_netcdf_metadata(netcdf_file, list(dict.fromkeys(required_variables)), product_name)
     model_identifier = f"{metadata['center']}-{metadata['model']}"
-    runtime_directory = create_runtime_directory(project_root, model_identifier)
     timeline = build_timeline(animation, metadata, product_name)
+    if horizontal_section is not None:
+        requested_pressure = float(horizontal_section["pressure_hpa"])
+        with Dataset(netcdf_file) as dataset:
+            if "lev" not in dataset.variables or getattr(dataset["lev"], "units", "") != "millibars":
+                raise RuntimeError(f"El NetCDF {netcdf_file.name} de {model_identifier} requiere lev en millibars.")
+            pressure_levels = [float(value) for value in dataset["lev"][:]]
+            if not pressure_levels:
+                raise RuntimeError(f"El NetCDF {netcdf_file.name} de {model_identifier} no contiene niveles de presión.")
+            pressure_hpa = min(pressure_levels, key=lambda level: (abs(level - requested_pressure), -level))
+            level_index = pressure_levels.index(pressure_hpa)
+            if not float(scene["view_pressure"]["top_hpa"]) <= pressure_hpa <= float(scene["view_pressure"]["bottom_hpa"]):
+                raise RuntimeError(f"{model_identifier}, {netcdf_file.name}: el nivel {pressure_hpa:g} hPa queda fuera de la escena {product_name}.")
+            section_variables = [str(variables[key]) for key in ("air_temperature", "wind_u", "wind_v")]
+            if horizontal_section["geopotential_height"]["enabled"]:
+                section_variables.append(str(variables["geopotential_height"]))
+            for variable_name in section_variables:
+                variable = dataset[variable_name]
+                if variable.dimensions != ("time", "lev", "latitude", "longitude"):
+                    raise RuntimeError(f"{model_identifier}, {netcdf_file.name}: {variable_name} no tiene dimensiones isobáricas canónicas.")
+                if horizontal_section["geopotential_height"]["enabled"] and variable_name == variables["geopotential_height"] and getattr(variable, "units", "") != "gpm":
+                    raise RuntimeError(f"{model_identifier}, {netcdf_file.name}: {variable_name} requiere unidades gpm para los contornos.")
+                for time_index, valid_time in enumerate(metadata["valid_times"]):
+                    if (valid_time - metadata["valid_times"][0]).total_seconds() > timeline["range_seconds"]:
+                        break
+                    field = variable[time_index, level_index, :, :]
+                    if hasattr(field, "mask") and field.mask is not False and field.mask.all():
+                        raise RuntimeError(f"{model_identifier}, {netcdf_file.name}: {variable_name} sin datos a {pressure_hpa:g} hPa, tiempo {valid_time}.")
+        horizontal_section["effective_pressure_hpa"] = pressure_hpa
+        print(f"Sección horizontal {model_identifier}, {netcdf_file.name}: nivel solicitado {requested_pressure:g} hPa; nivel utilizado {pressure_hpa:g} hPa.")
+    runtime_directory = create_runtime_directory(project_root, model_identifier)
 
     # Completar geometría derivada sin ocultar los valores declarados en YAML.
     area = require_value(scene, ("area",), "de escena Met.3D")
@@ -386,6 +427,7 @@ def prepare_animation(
         "derived_variable_mappings": derived_variable_mappings,
         "object_bounding_boxes": object_bounding_boxes,
         "potential_vorticity": potential_vorticity,
+        "horizontal_section": horizontal_section,
         "jet": jet,
         "timeline": timeline,
         "frames_directory": frames_directory.resolve(),
@@ -411,6 +453,11 @@ def prepare_animation(
         actor_files.append(files["surface_pressure"])
     if potential_vorticity is not None:
         context["pv_isovalue_si"] = f"{float(potential_vorticity['isosurface_pvu']) * 1e-6:.8g}"
+        opacity_byte = round(float(potential_vorticity["opacity"]) * 255)
+        context["pv_isosurface_colour"] = (
+            f"@Variant(\\0\\0\\0\\x43\\x1\\x{opacity_byte:02x}\\x{opacity_byte:02x}"
+            "\\x75\\x75\\x5f\\x5f\\xd6\\xd6\\0\\0)"
+        )
         files["potential_vorticity"] = render_template(
             template_environment,
             "potential_vorticity.actor.conf.j2",
@@ -418,6 +465,21 @@ def prepare_animation(
             context,
         )
         actor_files.append(files["potential_vorticity"])
+    if horizontal_section is not None:
+        pv = horizontal_section["potential_vorticity"]
+        for key in ("minimum_pvu", "maximum_pvu", "colour_steps", "hue", "dark_luminance", "light_luminance", "chroma"):
+            require_value(pv, (key,), f"de PV en la sección horizontal de {product_name}")
+        if float(pv["minimum_pvu"]) >= float(pv["maximum_pvu"]):
+            raise RuntimeError(f"El mínimo de PV debe ser menor que el máximo en {product_name}.")
+        wind = horizontal_section["wind"]
+        for key in ("spacing_degrees", "min_length_degrees", "max_length_degrees", "line_width"):
+            require_value(wind, (key,), f"del viento en la sección horizontal de {product_name}")
+        if horizontal_section["geopotential_height"]["enabled"]:
+            for key in ("minimum_gpm", "maximum_gpm", "interval_gpm"):
+                require_value(horizontal_section["geopotential_height"], (key,), f"de geopotencial en {product_name}")
+        files["pv_colourbar"] = render_template(template_environment, "horizontal_pv_colourbar.actor.conf.j2", runtime_directory / "horizontal_pv_colourbar.actor.conf", context)
+        files["horizontal_section"] = render_template(template_environment, "horizontal_section.actor.conf.j2", runtime_directory / "horizontal_section.actor.conf", context)
+        actor_files.extend((files["pv_colourbar"], files["horizontal_section"]))
     if jet is not None:
         files["jet"] = render_template(
             template_environment,

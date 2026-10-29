@@ -11,7 +11,7 @@ fotogramas a la sesión, por lo que la sesión base no contiene rutas de usuario
 
 | Animación | Configuración | Estructura meteorológica |
 |---|---|---|
-| DANA | `config/met3d/animations/south_america_dana.yaml` | Isosuperficie de PV baroclínica de -5 PVU entre 500 y 250 hPa, con `pressfc` como topografía de la coordenada presión. |
+| DANA | `config/met3d/animations/south_america_dana.yaml` | Isosuperficie de PV baroclínica de -5 PVU entre 500 y 250 hPa y sección horizontal de PV, viento y altura geopotencial; `pressfc` proporciona topografía de presión. |
 | Jet | `config/met3d/animations/south_america_jet.yaml` | Isosuperficie de rapidez derivada de `ugrdprs` y `vgrdprs`, entre 500 y 100 hPa, con umbral inicial de 50 m s-1. |
 
 Ambas animaciones usan exclusivamente la escena de Met.3D
@@ -52,6 +52,34 @@ conda run -n metvis3d python scripts/run_met3d_dana.py \
 ```
 
 El video se conserva bajo `outputs/met3d/dana/<centro>-<modelo>/`.
+`objects.potential_vorticity.opacity` controla la opacidad de la isosuperficie
+3D: 0 es transparente y 1 es opaca; inicialmente se usa 0.65. Este parámetro
+no altera los colores de la sección horizontal.
+
+### Sección horizontal de DANA
+
+`objects.horizontal_section` configura una sección en un nivel de presión
+común para PV baroclínica, viento y altura geopotencial. `pressure_hpa` solicita
+350 hPa inicialmente. Si ese nivel no existe, se utiliza el nivel nativo más
+próximo; en caso de empate se elige el de mayor presión. El lanzador informa el
+nivel solicitado y el utilizado, que también aparece en el nombre y etiqueta
+del actor. No se interpola para seleccionar el nivel.
+
+La PV se muestra con contornos rellenos violetas de -10 a -2 PVU; por encima de
+-2 PVU es transparente y por debajo de -10 PVU se extiende el color más intenso.
+Los límites y el estilo están en `potential_vorticity`. El viento se representa
+con barbas individuales: `wind.spacing_degrees` regula su separación,
+`min_length_degrees` y `max_length_degrees` su tamaño, y `line_width` su grosor.
+Met.3D convierte las componentes del viento de m/s a nudos para las barbas.
+`geopotential_height.enabled`
+activa los contornos de `hgtprs`, cuyo intervalo inicial es 120 gpm. Si se
+activa, la variable debe existir y declarar unidades `gpm`.
+
+El proceso detiene la ejecución si una variable requerida no existe o no tiene
+datos en el nivel efectivo para un plazo seleccionado. La sección describe la
+PV en ese plano; no define por sí sola toda la extensión vertical de la DANA.
+Las barbas y el color deben revisarse meteorológicamente junto con
+la isosuperficie y los contornos de geopotencial.
 
 Ambas acciones preparan el runtime transitorio antes de iniciar Met.3D. No hay
 una acción pública de preparación aislada: el runtime debe corresponder al
