@@ -55,6 +55,12 @@ objects:
 # Met.3D. origin es la posición de cámara; los ejes y/z fijan su orientación.
 # Puede ajustarse en la interfaz y copiarse de vuelta a este YAML.
 camera:
+  orbit:
+    enabled: true
+    zoom_factor: 0.94
+    target_world_z: 0.0
+    zoom_fraction: 0.1
+    tension: 0.0
   origin:
     longitude: -30.441743850708008
     latitude: -115.15374755859375
@@ -76,6 +82,6 @@ timeline:
 output:
   width_px: 1920
   height_px: 1080
-  frames_per_second: 10
+  frames_per_second: 4
   video_codec: libx264
   pixel_format: yuv420p

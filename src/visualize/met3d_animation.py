@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import math
 import os
 import re
 import shutil
 import struct
 import subprocess
+import xml.etree.ElementTree as ET
 from datetime import datetime
 from pathlib import Path
 
@@ -153,12 +155,65 @@ def render_template(template_environment: Environment, template_name: str, outpu
     return output_file
 
 
+def create_camera_orbit(camera: dict, scene: dict, timeline: dict, sequence_file: Path, product_name: str) -> Path:
+    """Construye una órbita de cámara alrededor del centro de la escena."""
+
+    orbit = require_value(camera, ("orbit",), f"de cámara de {product_name}")
+    zoom = float(require_value(orbit, ("zoom_factor",), f"de cámara de {product_name}"))
+    zoom_fraction = float(require_value(orbit, ("zoom_fraction",), f"de cámara de {product_name}"))
+    tension = float(require_value(orbit, ("tension",), f"de cámara de {product_name}"))
+    target_z = float(require_value(orbit, ("target_world_z",), f"de cámara de {product_name}"))
+    if not 0 < zoom <= 1 or not 0 < zoom_fraction < 1 or not -1 <= tension <= 1:
+        raise RuntimeError(f"La órbita de {product_name} requiere zoom_factor en (0, 1], zoom_fraction en (0, 1) y tension entre -1 y 1.")
+    origin = camera["origin"]
+    y_axis = camera["y_axis"]
+    z_axis = camera["z_axis"]
+    center_lon = (float(scene["area"]["west"]) + float(scene["area"]["east"])) / 2
+    center_lat = (float(scene["area"]["south"]) + float(scene["area"]["north"])) / 2
+    offset_lon = float(origin["longitude"]) - center_lon
+    offset_lat = float(origin["latitude"]) - center_lat
+    yaw = math.degrees(math.atan2(-float(z_axis["longitude"]), float(z_axis["latitude"])))
+    pitch = math.degrees(math.atan2(float(y_axis["world_z"]), -float(z_axis["world_z"])))
+    target_yaw = math.degrees(math.atan2(offset_lon, -offset_lat))
+    yaw_difference = (target_yaw - yaw + 180) % 360 - 180
+    target_pitch = math.degrees(math.atan2(float(origin["world_z"]) - target_z, math.hypot(offset_lon, offset_lat)))
+    yaw_radians = math.radians(yaw)
+    roll = math.degrees(math.atan2(
+        float(y_axis["longitude"]) * math.cos(yaw_radians) + float(y_axis["latitude"]) * math.sin(yaw_radians),
+        math.hypot(float(y_axis["world_z"]), float(z_axis["world_z"])),
+    ))
+    sequence = ET.Element("CameraSequence", name=f"{product_name} orbit", tension=str(tension))
+    # Cada punto corresponde a un plazo; el giro comienza después del acercamiento.
+    intervals = timeline["range_seconds"] // timeline["step_seconds"]
+    if intervals < 2:
+        raise RuntimeError(f"La órbita de {product_name} requiere al menos tres plazos para el acercamiento y el giro.")
+    for index in range(intervals + 1):
+        progress = index / intervals
+        angle = 2 * math.pi * max(0.0, (progress - zoom_fraction) / (1 - zoom_fraction))
+        zoom_progress = min(1.0, progress / zoom_fraction)
+        scale = 1 - (1 - zoom) * zoom_progress
+        lon = center_lon + scale * (offset_lon * math.cos(angle) - offset_lat * math.sin(angle))
+        lat = center_lat + scale * (offset_lon * math.sin(angle) + offset_lat * math.cos(angle))
+        z = target_z + scale * (float(origin["world_z"]) - target_z)
+        ET.SubElement(sequence, "SequenceKey", {
+            "label": str(index), "lon": str(lon), "lat": str(lat), "z": str(z),
+            "pitch": str(pitch + (target_pitch - pitch) * zoom_progress),
+            "yaw": str(yaw + yaw_difference * zoom_progress + math.degrees(angle)),
+            "roll": str(roll * (1 - zoom_progress)),
+            "advanceTimestep": "0", "isOrthographic": "0", "transition": "1",
+        })
+    ET.indent(sequence, space="  ")
+    sequence_file.write_text('<!DOCTYPE CameraSequence>\n' + ET.tostring(sequence, encoding="unicode") + '\n', encoding="utf-8")
+    return sequence_file
+
+
 def prepare_runtime_session(
     session_source_file: Path,
     runtime_directory: Path,
     frames_directory: Path,
     animation: dict,
     for_render: bool,
+    timeline: dict,
 ) -> Path:
     """Copia la sesión base y aplica cámara, resolución y directorio temporal."""
 
@@ -190,6 +245,12 @@ def prepare_runtime_session(
         "MSceneViews\\MSceneView_0\\custom_resolution_height": require_value(output, ("height_px",), f"de animación {animation_name}"),
         "Animation\\save_directory": frames_directory.resolve(),
     }
+    orbit = camera.get("orbit")
+    if orbit and orbit.get("enabled"):
+        session_settings["Animation\\cam_runtime_seconds"] = timeline["range_seconds"] // timeline["step_seconds"]
+        session_settings["Animation\\delay_ms"] = 500
+        session_settings["Animation\\advance_type"] = 0
+        session_settings["Animation\\advance_interval"] = 2
 
     session_lines = runtime_session_file.read_text(encoding="utf-8").splitlines(keepends=True)
     settings_found = {setting: False for setting in session_settings}
@@ -326,6 +387,17 @@ def prepare_animation(
     metadata = read_netcdf_metadata(netcdf_file, list(dict.fromkeys(required_variables)), product_name)
     model_identifier = f"{metadata['center']}-{metadata['model']}"
     timeline = build_timeline(animation, metadata, product_name)
+    camera_orbit = animation["camera"].get("orbit")
+    if camera_orbit and camera_orbit.get("enabled"):
+        valid_times = metadata["valid_times"]
+        for earlier, later in zip(valid_times, valid_times[1:]):
+            if (later - valid_times[0]).total_seconds() > timeline["range_seconds"]:
+                break
+            if (later - earlier).total_seconds() != timeline["step_seconds"]:
+                raise RuntimeError(
+                    f"{model_identifier}, {netcdf_file.name}: la órbita requiere plazos regulares; "
+                    f"entre {earlier} y {later} no se conserva el intervalo inicial."
+                )
     if horizontal_section is not None:
         requested_pressure = float(horizontal_section["pressure_hpa"])
         with Dataset(netcdf_file) as dataset:
@@ -417,6 +489,7 @@ def prepare_animation(
         frames_directory,
         animation,
         for_render,
+        timeline,
     )
     context = {
         "dataset_name": dataset_name,
@@ -435,6 +508,11 @@ def prepare_animation(
         "bounding_boxes_file": (runtime_directory / "bounding_boxes.bbox.conf").resolve(),
     }
 
+    camera_sequence = None
+    if camera_orbit is not None and require_value(camera_orbit, ("enabled",), f"de cámara de {product_name}"):
+        camera_sequence = create_camera_orbit(animation["camera"], scene, timeline, runtime_directory / "camera_sequence.xml", product_name)
+    context["camera_sequence"] = camera_sequence
+
     files = {
         "dataset": render_template(template_environment, "dataset.dataset.conf.j2", runtime_directory / "dataset.dataset.conf", context),
         "bounding_boxes": render_template(template_environment, "bounding_boxes.bbox.conf.j2", runtime_directory / "bounding_boxes.bbox.conf", context),
@@ -442,6 +520,8 @@ def prepare_animation(
         "volume": render_template(template_environment, "volume_bounding_box.actor.conf.j2", runtime_directory / "volume_bounding_box.actor.conf", context),
         "batch": render_template(template_environment, "batch_mode.batch.conf.j2", runtime_directory / "batch_mode.batch.conf", context),
     }
+    if camera_sequence is not None:
+        files["camera_sequence"] = camera_sequence
     actor_files = [files[name] for name in ("basemap", "volume")]
     if surface_pressure is not None:
         files["surface_pressure"] = render_template(
@@ -631,6 +711,27 @@ def render_animation(preparation: dict[str, object], conda_executable: str, envi
     frame_glob = frames_directory / "frame-FN*.png"
     if not list(frames_directory.glob("frame-FN*.png")):
         raise RuntimeError("Met.3D terminó sin escribir fotogramas PNG para la animación.")
+    if "camera_sequence" in files:
+        metadata = preparation["metadata"]
+        timeline = build_timeline(animation, metadata, str(animation["name"]))
+        first_time = metadata["valid_times"][0]
+        frame_names = {frame.name for frame in frames_directory.glob("frame-FN*.png")}
+        selected_timestamps = set()
+        for valid_time in metadata["valid_times"]:
+            if (valid_time - first_time).total_seconds() > timeline["range_seconds"]:
+                break
+            timestamp = valid_time.strftime("%Y-%m-%dT%H%M%SZ")
+            selected_timestamps.add(timestamp)
+            if not any(name.endswith(f"-{timestamp}.png") for name in frame_names):
+                raise RuntimeError(
+                    f"La animación {animation['name']} de {metadata['center']}-{metadata['model']} "
+                    f"no generó fotogramas para el plazo {valid_time}; revise la sincronización de cámara y tiempo."
+                )
+        for frame_name in frame_names:
+            match = re.search(r"(\d{4}-\d{2}-\d{2}T\d{6}Z)\.png$", frame_name)
+            timestamp = match.group(1) if match else ""
+            if timestamp not in selected_timestamps:
+                raise RuntimeError(f"La animación {animation['name']} generó un fotograma fuera de los plazos seleccionados: {frame_name}.")
 
     output = animation["output"]
     video_file.parent.mkdir(parents=True, exist_ok=True)
