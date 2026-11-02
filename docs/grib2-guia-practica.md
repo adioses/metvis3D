@@ -355,9 +355,29 @@ Por ejemplo, una corrida iniciada a las 00Z con plazos de tres horas escribe
 lectores de pronóstico, incluido Met.3D, identifiquen la inicialización y el
 plazo correctamente.
 
-Las variables se escriben como float32 con compresión zlib y
-least_significant_digit=2; las verificaciones numéricas consideran esa
-cuantización.
+Las variables se escriben como `float32` con compresión `zlib` y
+`least_significant_digit=2` por defecto. El YAML de cada modelo puede declarar
+excepciones por nombre final de variable:
+
+```yaml
+standardization:
+  longitude_range: "-180_180"
+  least_significant_digit:
+    spfhprs: full
+```
+
+Un entero no negativo aplica ese `least_significant_digit`; `full` desactiva
+únicamente la cuantización adicional, conservando `float32`, las unidades y
+la compresión. Una variable no declarada, o la ausencia del mapa completo,
+mantiene el valor 2. Los valores distintos de enteros no negativos o `full`
+detienen el proceso con un mensaje que identifica el modelo y la variable.
+
+GFS, IFS, ETA y WRF declaran `spfhprs: full` para conservar la humedad
+específica en `kg/kg`. Los lanzadores de conversión y benchmark transmiten
+estas excepciones al conversor mediante `least_significant_digits`. Una llamada
+directa a `Grib2ToNetCDF` sin ese argumento conserva el valor 2 para todas las
+variables. Las verificaciones numéricas deben considerar la precisión efectiva
+de cada campo, incluida la representación `float32` cuando se usa `full`.
 
 El NetCDF conserva `parameter_signature`, información de centro y tablas,
 superficie y proceso estadístico. El nombre de variable y sus atributos

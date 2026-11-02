@@ -41,6 +41,8 @@ class Grib2ToNetCDF:
         area: Área opcional `(west, south, east, north)` para el recorte geográfico.
         longitude_convention: Rango longitudinal del NetCDF final: `0_360` o `-180_180`.
         variables: Nombres finales exactos de las variables a convertir.
+        least_significant_digits: Precisión por nombre final; `full` conserva
+            float32 sin cuantización y las variables no declaradas usan 2.
     """
 
     _DOMAIN_LIMITS = re.compile(
@@ -59,6 +61,7 @@ class Grib2ToNetCDF:
         area: tuple[float, float, float, float] | None = None,
         longitude_convention: str = "0_360",
         variables: Sequence[str] | None = None,
+        least_significant_digits: dict[str, int | str] | None = None,
     ) -> None:
         if len(grib_files) < 3:
             raise ValueError("Se requiere al menos de 3 archivos GRIB2 para conversión.")
@@ -76,6 +79,13 @@ class Grib2ToNetCDF:
         self.area = area
         self.longitude_convention = longitude_convention
         self.variables = None if variables is None else tuple(variables)
+        self.least_significant_digits = {} if least_significant_digits is None else least_significant_digits
+        for variable_name, precision in self.least_significant_digits.items():
+            if precision != "full" and (type(precision) is not int or precision < 0):
+                raise ValueError(
+                    f"Precisión NetCDF inválida para modelo {self.model}, variable {variable_name}: "
+                    f"{precision!r}. Use un entero no negativo o 'full'."
+                )
         self.inventory: pd.DataFrame | None = None
         self.netcdf_variables: pd.DataFrame | None = None
         self.selected_variables: set[str] = set()
@@ -530,7 +540,7 @@ class Grib2ToNetCDF:
         La dimensión `time` es ilimitada y su coordenada se escribe antes de las
         matrices. Las variables isobáricas usan cuatro dimensiones y las demás
         usan tres; todas las variables meteorológicas usan compresión y
-        cuantización decimal.
+        cuantización configurable por variable.
         """
 
         # Inicia netCDF en modo escritura con atributos globales
@@ -583,7 +593,10 @@ class Grib2ToNetCDF:
         for variable in self.netcdf_variables.itertuples(index=False):
             pressure_var = variable.is_isobaric
             dimensions = ("time", "lev", "latitude", "longitude") if pressure_var else ("time", "latitude", "longitude")
-            netcdf_variable = dataset.createVariable(variable.var_name, "f4", dimensions, zlib=True, least_significant_digit=2)
+            precision = self.least_significant_digits.get(variable.var_name, 2)
+            if precision == "full":
+                precision = None
+            netcdf_variable = dataset.createVariable(variable.var_name, "f4", dimensions, zlib=True, least_significant_digit=precision)
             
             netcdf_variable.units = variable.units
             netcdf_variable.long_name = f'{variable.long_name} at Isobaric levels' if pressure_var else f'{variable.long_name} at {variable.level_name}'

@@ -92,6 +92,7 @@ def read_model_configuration(model_name: str) -> dict:
         file_template = source["file_template"]
         forecast_schedule = source["forecast_schedule"]
         longitude_convention = configuration["standardization"]["longitude_range"]
+        least_significant_digits = configuration["standardization"].get("least_significant_digit", {})
         variables = configuration["selected_variables"]
     except KeyError as error:
         raise RuntimeError(
@@ -118,6 +119,7 @@ def read_model_configuration(model_name: str) -> dict:
         "file_template": file_template,
         "forecast_schedule": forecast_schedule,
         "longitude_convention": longitude_convention,
+        "least_significant_digits": least_significant_digits,
         "variables": variables,
     }
 
@@ -234,6 +236,7 @@ def run_conversion(arguments: argparse.Namespace) -> Path:
         area=tuple(arguments.area) if arguments.area is not None else None,
         longitude_convention=model_configuration["longitude_convention"],
         variables=model_configuration["variables"],
+        least_significant_digits=model_configuration["least_significant_digits"],
     )
     print(f"Convirtiendo {len(grib_files)} GRIB2 de {model_configuration['model']}...", flush=True)
     netcdf_output = converter.run_conversion(arguments.output_directory)

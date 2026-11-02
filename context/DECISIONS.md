@@ -70,13 +70,19 @@ remapeo aprobado.
 
 ## D-007 — Escritura y atributos del NetCDF
 
-**Fecha:** 2026-09-23
+**Fecha:** 2026-09-23, actualizada 2026-11-02
 **Decisión:** las variables meteorológicas se escriben como `float32`, con
-compresión `zlib` y `least_significant_digit=2`.
+compresión `zlib` y `least_significant_digit=2` por defecto. El mapa opcional
+`standardization.least_significant_digit` del YAML de cada modelo permite
+excepciones por nombre final: un entero no negativo establece la precisión y
+`full` desactiva la cuantización adicional. GFS, IFS, ETA y WRF configuran
+`spfhprs: full`, conservando la humedad específica en `kg/kg`.
 
 **Impacto:** el NetCDF registra modelo, centro, dominio, hora de referencia,
 convención longitudinal y metadatos de procedencia. Las verificaciones
-científicas consideran la cuantización decimal declarada.
+científicas consideran la precisión efectiva de cada variable. `full` mantiene
+`float32` y compresión; los NetCDF anteriores deben regenerarse desde los GRIB
+originales para recuperar el detalle de humedad perdido por cuantización.
 
 ## D-009 — Metadatos CF para NetCDF de pronóstico
 

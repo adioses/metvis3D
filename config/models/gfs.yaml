@@ -12,6 +12,8 @@ source:
 
 standardization:
   longitude_range: "-180_180"
+  least_significant_digit:
+    spfhprs: full
 
 # Esta selección es inicial y se ampliará al definir los productos audiovisuales.
 selected_variables:

@@ -45,6 +45,14 @@ siguiente etapa es su validación meteorológica y visual.
   superficies y remapeos presentes. `scripts/benchmark_grib2_to_netcdf.py`
   registra las etapas de validación, preparación de variables y escritura por
   archivo.
+- La precisión NetCDF admite excepciones por variable en
+  `standardization.least_significant_digit`: enteros no negativos o `full`,
+  con valor 2 por defecto. GFS, IFS, ETA y WRF declaran `spfhprs: full`,
+  conservando `float32`, compresión y unidades `kg/kg`. Se verificaron
+  manualmente el lanzador operativo y el benchmark con tres GRIB GFS de
+  2026-08-16, en los casos `full`, precisión numérica y configuración sin
+  excepciones: 702 matrices contrastadas con el origen. El procedimiento y
+  los resultados están en `docs/grib2-guia-practica.md`, sección 12.1.
 
 ## Pendiente para cerrar el ítem a)
 
@@ -52,8 +60,11 @@ siguiente etapa es su validación meteorológica y visual.
   seleccionadas de GFS e IFS.
 - Comparar cada caso con su GRIB2 de origen: variable y unidades, tiempo
   válido, nivel, orientación espacial, área recortada, valores y remapeos.
-- Documentar las tolerancias asociadas a `least_significant_digit=2` y
+- Documentar las tolerancias de cada variable según su precisión efectiva y
   confirmar el significado y unidades de los parámetros locales remapeados.
+- Regenerar desde los GRIB originales los NetCDF existentes que usaban
+  `least_significant_digit=2` para humedad específica; la nueva configuración
+  no recupera el detalle perdido en esos archivos.
 - Resolver o aceptar explícitamente las variables solicitadas que no estén
   disponibles en una corrida, como las advertencias actuales de `prmslmsl` en
   la selección ECMWF.

@@ -12,6 +12,8 @@ source:
 
 standardization:
   longitude_range: "-180_180"
+  least_significant_digit:
+    spfhprs: full
 
 # Selección inicial confirmada por el inventario de la corrida ETA.
 selected_variables:

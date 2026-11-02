@@ -164,7 +164,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--variables-yml",
         type=Path,
-        help="YAML con la lista selected_variables para el NetCDF.",
+        help="YAML con selected_variables y precisión NetCDF opcional por variable.",
     )
     parser.add_argument(
         "--area",
@@ -177,13 +177,17 @@ def parse_arguments() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def read_selected_variables(variables_yml: Path | None) -> list[str] | None:
-    """Lee la selección opcional de variables finales del modelo."""
+def read_variable_configuration(variables_yml: Path | None) -> tuple[list[str] | None, dict[str, int | str]]:
+    """Lee la selección y la precisión opcionales de las variables del modelo."""
 
     if variables_yml is None:
-        return None
+        return None, {}
     with variables_yml.open(encoding="utf-8") as configuration_file:
-        return yaml.safe_load(configuration_file)["selected_variables"]
+        configuration = yaml.safe_load(configuration_file)
+    return (
+        configuration["selected_variables"],
+        configuration.get("standardization", {}).get("least_significant_digit", {}),
+    )
 
 
 def main() -> None:
@@ -196,7 +200,7 @@ def main() -> None:
     if not grib_files:
         raise RuntimeError("No se encontraron archivos GRIB para el benchmark.")
 
-    variables = read_selected_variables(arguments.variables_yml)
+    variables, least_significant_digits = read_variable_configuration(arguments.variables_yml)
     area = tuple(arguments.area)
     arguments.output_dir.mkdir(parents=True, exist_ok=True)
     benchmark_log = arguments.output_dir / f"{arguments.center.lower()}-{arguments.model.lower()}_benchmark.log"
@@ -211,7 +215,9 @@ def main() -> None:
         log_file.write("Convención longitudinal: 0_360\n")
         log_file.write(f"Configuración GRIB2: {arguments.configuration_yml}\n")
         log_file.write(f"Variables: {'todas' if variables is None else ', '.join(variables)}\n")
-        log_file.write("Cuantización: least_significant_digit=2\n")
+        log_file.write(
+            f"Precisión NetCDF: least_significant_digit=2 por defecto; excepciones: {least_significant_digits}\n"
+        )
 
     converter = TimedGrib2ToNetCDF(
         grib_files,
@@ -221,6 +227,7 @@ def main() -> None:
         area=area,
         longitude_convention="-180_180",
         variables=variables,
+        least_significant_digits=least_significant_digits,
         benchmark_log=benchmark_log,
     )
     started_at = time.perf_counter()
