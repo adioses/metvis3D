@@ -27,7 +27,7 @@ objects:
       bottom_hpa: 500.0
       top_hpa: 250.0
     isosurface_pvu: -5.0
-    opacity: 0.45
+    opacity: 0.65
 
   horizontal_section:
     enabled: true
@@ -55,11 +55,16 @@ objects:
 # Met.3D. origin es la posición de cámara; los ejes y/z fijan su orientación.
 # Puede ajustarse en la interfaz y copiarse de vuelta a este YAML.
 camera:
-  orbit:
+  trajectory:
     enabled: true
+    type: orbit
+    minimum_frames: 81
+    frames_per_interval: 2
+    keyframes: 17
     zoom_factor: 0.94
     target_world_z: 0.0
     zoom_fraction: 0.1
+    end_hold_fraction: 0.125
     tension: 0.0
   origin:
     longitude: -30.441743850708008
@@ -82,6 +87,6 @@ timeline:
 output:
   width_px: 1920
   height_px: 1080
-  frames_per_second: 4
+  frames_per_second: 6
   video_codec: libx264
   pixel_format: yuv420p

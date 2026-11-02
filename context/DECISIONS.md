@@ -91,7 +91,7 @@ campos, niveles ni grilla.
 
 ## D-010 — Flujo actual de animaciones con Met.3D
 
-**Fecha:** 2026-10-19, actualizada 2026-10-28
+**Fecha:** 2026-10-19, actualizada 2026-11-02
 **Decisión:** Met.3D opera de forma independiente bajo `config/met3d/`, con
 escenas, animaciones, sesiones y runtime propios. DANA y jet usan el motor
 común `src/visualize/met3d_animation.py`; sus lanzadores reciben un NetCDF
@@ -102,6 +102,16 @@ guardan bajo `outputs/met3d/`. La copia runtime asigna su directorio de
 fotogramas a la sesión, por lo que la sesión base no contiene rutas de usuario.
 Las cámaras, objetos, intervalos de presión y salida se mantienen en los YAML
 de cada animación, sin intervenir en ParaView.
+
+La cámara puede permanecer fija o seguir una trayectoria configurable; el
+primer tipo disponible es `orbit`, alrededor del centro geográfico de la
+escena. Con trayectoria, el número de fotogramas se calcula a partir de los
+tiempos disponibles y los mínimos configurados, y un mismo tiempo puede ocupar
+varios fotogramas. Un único tiempo válido permite recorrer la trayectoria con
+el campo fijo. Sin trayectoria se genera un fotograma por tiempo seleccionado.
+La coordenada temporal completa del NetCDF debe estar ordenada y, si contiene
+varios tiempos, tener intervalos regulares; se detiene el proceso ante tiempos
+ausentes, duplicados, desordenados o intervalos irregulares.
 
 ## D-011 — Flujo actual de animaciones con ParaView
 

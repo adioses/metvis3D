@@ -1,6 +1,6 @@
 # Estado del proyecto
 
-**Última actualización:** 2026-10-29
+**Última actualización:** 2026-11-02
 
 ## Resumen
 
@@ -97,15 +97,19 @@ siguiente etapa es su validación meteorológica y visual.
   ParaView, para `ncep-gfs_20260816_00Z.nc`. Los tres MP4 tienen 81
   fotogramas H.264 de 1920×1080 y 8.1 s. Met.3D obtuvo OpenGL 4.6; ParaView
   aplicó la política YAML para diez huecos aislados de `hgtprs` a 250 hPa.
-- DANA incorpora una sección horizontal configurable con PV, líneas de viento
+- DANA incorpora una sección horizontal configurable con PV, barbas de viento
   y geopotencial opcional. Se comprobó en Met.3D 2.0.0b11 el render de los
   primeros plazos de GFS del 2026-08-16 y la selección de 400 hPa cuando se
   solicitan 375 hPa, equidistantes entre 350 y 400 hPa. Queda pendiente la
   revisión meteorológica y visual de la composición para el evento completo.
-
-## Siguiente actividad
-
-Revisar meteorológicamente los videos generados, ajustar desde YAML los
-umbrales, intervalos verticales, cámaras y estilo cuando corresponda, acordar
-el protocolo de validación científica para GFS y ECMWF, y decidir la promoción
-de `metvis3d-test` al ambiente operativo `metvis3d`.
+- Met.3D admite una trayectoria de cámara configurable de tipo `orbit`,
+  sincronizada con los tiempos del NetCDF, y carga la secuencia en `--open`.
+  Se comprobaron renders de órbita y cámara fija con uno y tres tiempos;
+  también se comprobaron intervalos regulares de 1, 3 y 6 h y el rechazo de
+  tiempos duplicados, desordenados o irregulares. La cámara fija conserva un
+  fotograma por tiempo; la trayectoria admite varios y un solo tiempo válido.
+- Se exploraron videos de DANA con PV coloreada por presión y con renderizado
+  directo de volumen de PV, junto con una referencia de cámara fija. Estas
+  variantes se generaron con configuraciones temporales y aún no forman parte
+  del flujo operativo; su composición requiere evaluación meteorológica y
+  visual. Los videos no muestran todavía el tiempo válido como etiqueta.

@@ -133,3 +133,58 @@ componentes se encuentran en `camera.origin`, `camera.y_axis` y
 La sesión base no debe editarse para cambiar una cámara. El flujo copia la
 sesión al runtime de la corrida y aplica allí la cámara, resolución y captura
 de imágenes.
+
+### Trayectoria de cámara
+
+La trayectoria es opcional y se configura en `camera.trajectory`. Para usar
+una cámara fija, indique `enabled: false` o no incluya esa sección. Con una
+trayectoria habilitada, `type: orbit` es el único tipo disponible actualmente.
+La órbita comienza desde la cámara del YAML, se acerca al centro horizontal de
+la escena, completa un giro y mantiene brevemente la vista final. El centro
+proviene de los límites geográficos de la escena, sin detectar automáticamente
+el fenómeno. `--open` carga la secuencia en Met.3D para revisarla en el editor
+de cámara; `--render` la utiliza en modo batch.
+
+En el YAML de DANA se pueden ajustar:
+
+- `minimum_frames`: cantidad mínima de fotogramas del video con trayectoria.
+- `frames_per_interval`: cantidad de fotogramas por tiempo usada para planificar
+  la captura; el proceso puede aumentarla para cumplir el mínimo total. La
+  captura final de Met.3D puede variar en un fotograma.
+- `keyframes`: posiciones que definen la curva de cámara, al menos cinco; son
+  distintas de los fotogramas que se generan para el video.
+- `zoom_factor`: factor de acercamiento respecto a la distancia inicial;
+  `0.94` la reduce al 94 %. `zoom_fraction` define la fracción de la
+  trayectoria usada para el acercamiento.
+- `target_world_z`: coordenada vertical gráfica del centro de referencia;
+  no se expresa en hPa. `tension` controla la interpolación de la trayectoria.
+- `end_hold_fraction`: fracción de la secuencia reservada para mantener la
+  vista final.
+
+La cámara se desplaza alrededor de la escena; al mantenerla enfocada hacia el
+centro, la órbita puede percibirse como un giro del mapa. La composición y el
+recorrido siguen sujetos a revisión visual y meteorológica.
+
+### Tiempos y fotogramas
+
+El proceso lee los tiempos válidos del NetCDF. `timeline.selection` acepta
+`all_available` o `first_hours`; en este último caso, `max_forecast_hours`
+limita la selección a partir del primer tiempo disponible. Antes de seleccionar
+el intervalo, se comprueba toda la coordenada temporal del archivo: debe tener
+al menos un tiempo, estar ordenada, no contener valores ausentes o duplicados
+y, cuando hay varios tiempos, conservar un intervalo regular de segundos
+enteros. Un archivo con intervalos irregulares se rechaza aunque la selección
+solicitada abarque sólo una parte regular.
+
+Con cámara fija se genera un fotograma por tiempo seleccionado. Con trayectoria,
+se calculan fotogramas adicionales para mover la cámara mientras cada campo
+meteorológico permanece en su tiempo válido; se comprueba que todos los
+tiempos seleccionados estén presentes y en orden. Si sólo hay un tiempo, la
+cámara recorre la trayectoria sobre ese mismo campo. El número real de
+fotogramas puede variar en uno respecto al previsto por la captura de Met.3D,
+siempre que cumpla el mínimo y las comprobaciones de tiempo.
+
+`output.frames_per_second` define la velocidad de reproducción del MP4 y,
+junto con la cantidad de fotogramas, determina su duración. Los nombres de
+los PNG temporales incluyen el tiempo válido, pero el video no incorpora
+actualmente una etiqueta visible con fecha y hora.

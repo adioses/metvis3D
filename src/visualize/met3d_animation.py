@@ -71,10 +71,12 @@ def read_netcdf_metadata(netcdf_file: Path, required_variables: list[str], produ
 
         time_coordinate = dataset.variables["time"]
         time_values = time_coordinate[:]
-        if len(time_values) < 2:
+        if len(time_values) < 1:
             raise RuntimeError(
-                f"El NetCDF {netcdf_file.name} requiere al menos dos tiempos para generar una animación."
+                f"El NetCDF {netcdf_file.name} no contiene tiempos para {product_name}."
             )
+        if (hasattr(time_values, "mask") and time_values.mask.any()) or any(not math.isfinite(float(value)) for value in time_values):
+            raise RuntimeError(f"El NetCDF {netcdf_file.name} contiene tiempos ausentes o inválidos para {product_name}.")
         if not hasattr(time_coordinate, "units"):
             raise RuntimeError(f"La coordenada 'time' de {netcdf_file.name} no declara unidades.")
 
@@ -84,6 +86,7 @@ def read_netcdf_metadata(netcdf_file: Path, required_variables: list[str], produ
             "model": str(dataset.model).strip().lower(),
             "forecast_date": datetime.fromisoformat(str(dataset.forecast_date)),
             "valid_times": list(valid_times),
+            "netcdf_filename": netcdf_file.name,
         }
 
 
@@ -96,10 +99,15 @@ def build_timeline(animation: dict, metadata: dict, product_name: str) -> dict:
 
     selection = require_value(timeline, ("selection",), f"de animación {product_name}")
     valid_times = metadata["valid_times"]
+    step_seconds = None
+    for earlier, later in zip(valid_times, valid_times[1:]):
+        interval = (later - earlier).total_seconds()
+        if interval <= 0 or (step_seconds is not None and interval != step_seconds):
+            raise RuntimeError(f"{metadata['center']}-{metadata['model']}, {metadata['netcdf_filename']}: tiempos duplicados, desordenados o irregulares entre {earlier} y {later}.")
+        step_seconds = interval
+    if step_seconds is not None and step_seconds != int(step_seconds):
+        raise RuntimeError(f"{product_name}: el intervalo temporal debe expresarse en segundos enteros.")
     available_seconds = int((valid_times[-1] - valid_times[0]).total_seconds())
-    step_seconds = int((valid_times[1] - valid_times[0]).total_seconds())
-    if step_seconds <= 0:
-        raise RuntimeError("Los dos primeros tiempos del NetCDF no permiten avanzar la animación.")
 
     if selection == "all_available":
         range_seconds = available_seconds
@@ -109,7 +117,10 @@ def build_timeline(animation: dict, metadata: dict, product_name: str) -> dict:
     else:
         raise RuntimeError("timeline.selection debe ser 'all_available' o 'first_hours'.")
 
-    return {"range_seconds": range_seconds, "step_seconds": step_seconds}
+    selected_times = [time for time in valid_times if (time - valid_times[0]).total_seconds() <= range_seconds]
+    if not selected_times:
+        raise RuntimeError(f"{metadata['netcdf_filename']}: no hay tiempos seleccionados para {product_name}.")
+    return {"valid_times": selected_times, "range_seconds": int((selected_times[-1] - selected_times[0]).total_seconds()), "step_seconds": int(step_seconds) if step_seconds is not None else None}
 
 
 def create_runtime_directory(project_root: Path, model_identifier: str) -> Path:
@@ -146,6 +157,16 @@ def encode_saved_views_variant(number_of_views: int) -> str:
     return f"@Variant({escaped_bytes})"
 
 
+def encode_utc_time_variant(valid_time: datetime) -> str:
+    """Serializa el tiempo válido UTC para la sesión nativa de Met.3D."""
+
+    julian_day = valid_time.toordinal() + 1721425
+    milliseconds = ((valid_time.hour * 60 + valid_time.minute) * 60 + valid_time.second) * 1000 + valid_time.microsecond // 1000
+    encoded_time = struct.pack(">IQIB", 16, julian_day, milliseconds, 1)
+    escaped_bytes = "".join("\\0" if value == 0 else f"\\x{value:02x}" for value in encoded_time)
+    return f"@DateTime({escaped_bytes})"
+
+
 def render_template(template_environment: Environment, template_name: str, output_file: Path, context: dict) -> Path:
     """Genera una configuración nativa de Met.3D desde una plantilla Jinja."""
 
@@ -155,16 +176,17 @@ def render_template(template_environment: Environment, template_name: str, outpu
     return output_file
 
 
-def create_camera_orbit(camera: dict, scene: dict, timeline: dict, sequence_file: Path, product_name: str) -> Path:
+def create_camera_orbit(camera: dict, scene: dict, trajectory: dict, sequence_file: Path, product_name: str) -> Path:
     """Construye una órbita de cámara alrededor del centro de la escena."""
 
-    orbit = require_value(camera, ("orbit",), f"de cámara de {product_name}")
+    orbit = trajectory
     zoom = float(require_value(orbit, ("zoom_factor",), f"de cámara de {product_name}"))
     zoom_fraction = float(require_value(orbit, ("zoom_fraction",), f"de cámara de {product_name}"))
+    end_hold_fraction = float(require_value(orbit, ("end_hold_fraction",), f"de cámara de {product_name}"))
     tension = float(require_value(orbit, ("tension",), f"de cámara de {product_name}"))
     target_z = float(require_value(orbit, ("target_world_z",), f"de cámara de {product_name}"))
-    if not 0 < zoom <= 1 or not 0 < zoom_fraction < 1 or not -1 <= tension <= 1:
-        raise RuntimeError(f"La órbita de {product_name} requiere zoom_factor en (0, 1], zoom_fraction en (0, 1) y tension entre -1 y 1.")
+    if not 0 < zoom <= 1 or not 0 < zoom_fraction < 1 or not 0 < end_hold_fraction < 1 or not -1 <= tension <= 1:
+        raise RuntimeError(f"La órbita de {product_name} requiere zoom_factor en (0, 1], zoom_fraction y end_hold_fraction en (0, 1), y tension entre -1 y 1.")
     origin = camera["origin"]
     y_axis = camera["y_axis"]
     z_axis = camera["z_axis"]
@@ -183,12 +205,13 @@ def create_camera_orbit(camera: dict, scene: dict, timeline: dict, sequence_file
         math.hypot(float(y_axis["world_z"]), float(z_axis["world_z"])),
     ))
     sequence = ET.Element("CameraSequence", name=f"{product_name} orbit", tension=str(tension))
-    # Cada punto corresponde a un plazo; el giro comienza después del acercamiento.
-    intervals = timeline["range_seconds"] // timeline["step_seconds"]
-    if intervals < 2:
-        raise RuntimeError(f"La órbita de {product_name} requiere al menos tres plazos para el acercamiento y el giro.")
+    # Los puntos definen la curva; los plazos y fotogramas se sincronizan aparte.
+    intervals = int(require_value(orbit, ("keyframes",), f"de cámara de {product_name}")) - 1
+    if intervals < 4:
+        raise RuntimeError(f"La órbita de {product_name} requiere al menos cinco posiciones de cámara.")
     for index in range(intervals + 1):
-        progress = index / intervals
+        # Mantener la vista final permite completar el giro antes de que Met.3D detenga la captura.
+        progress = min(index / intervals / (1 - end_hold_fraction), 1.0)
         angle = 2 * math.pi * max(0.0, (progress - zoom_fraction) / (1 - zoom_fraction))
         zoom_progress = min(1.0, progress / zoom_fraction)
         scale = 1 - (1 - zoom) * zoom_progress
@@ -244,13 +267,17 @@ def prepare_runtime_session(
         "MSceneViews\\MSceneView_0\\custom_resolution_width": require_value(output, ("width_px",), f"de animación {animation_name}"),
         "MSceneViews\\MSceneView_0\\custom_resolution_height": require_value(output, ("height_px",), f"de animación {animation_name}"),
         "Animation\\save_directory": frames_directory.resolve(),
+        "TimeControls\\2\\TimeControl\\time": encode_utc_time_variant(timeline["valid_times"][0]),
+        "TimeControls\\2\\TimeControl\\time_dimensions\\size": 1,
+        "Animation\\from_time": encode_utc_time_variant(timeline["valid_times"][0]),
+        "Animation\\to_time": encode_utc_time_variant(timeline["valid_times"][-1]),
     }
-    orbit = camera.get("orbit")
-    if orbit and orbit.get("enabled"):
-        session_settings["Animation\\cam_runtime_seconds"] = timeline["range_seconds"] // timeline["step_seconds"]
-        session_settings["Animation\\delay_ms"] = 500
+    trajectory = camera.get("trajectory")
+    if trajectory and trajectory.get("enabled"):
+        session_settings["Animation\\cam_runtime_seconds"] = timeline["camera_runtime_seconds"]
+        session_settings["Animation\\delay_ms"] = 1000
         session_settings["Animation\\advance_type"] = 0
-        session_settings["Animation\\advance_interval"] = 2
+        session_settings["Animation\\advance_interval"] = timeline["frames_per_interval"]
 
     session_lines = runtime_session_file.read_text(encoding="utf-8").splitlines(keepends=True)
     settings_found = {setting: False for setting in session_settings}
@@ -387,17 +414,25 @@ def prepare_animation(
     metadata = read_netcdf_metadata(netcdf_file, list(dict.fromkeys(required_variables)), product_name)
     model_identifier = f"{metadata['center']}-{metadata['model']}"
     timeline = build_timeline(animation, metadata, product_name)
-    camera_orbit = animation["camera"].get("orbit")
-    if camera_orbit and camera_orbit.get("enabled"):
-        valid_times = metadata["valid_times"]
-        for earlier, later in zip(valid_times, valid_times[1:]):
-            if (later - valid_times[0]).total_seconds() > timeline["range_seconds"]:
-                break
-            if (later - earlier).total_seconds() != timeline["step_seconds"]:
-                raise RuntimeError(
-                    f"{model_identifier}, {netcdf_file.name}: la órbita requiere plazos regulares; "
-                    f"entre {earlier} y {later} no se conserva el intervalo inicial."
-                )
+    trajectory = animation["camera"].get("trajectory")
+    if trajectory and require_value(trajectory, ("enabled",), f"de cámara de {product_name}"):
+        trajectory_type = require_value(trajectory, ("type",), f"de cámara de {product_name}")
+        if trajectory_type != "orbit":
+            raise RuntimeError(f"La trayectoria '{trajectory_type}' de {product_name} no está disponible.")
+        minimum_frames = int(require_value(trajectory, ("minimum_frames",), f"de cámara de {product_name}"))
+        frames_per_interval = int(require_value(trajectory, ("frames_per_interval",), f"de cámara de {product_name}"))
+        if minimum_frames < 3 or frames_per_interval < 1:
+            raise RuntimeError(f"La trayectoria de {product_name} requiere al menos tres fotogramas y un fotograma por intervalo.")
+        intervals = len(timeline["valid_times"]) - 1
+        if intervals:
+            frames_per_interval = max(frames_per_interval, math.ceil((minimum_frames + 1) / len(timeline["valid_times"])))
+            frame_count = len(timeline["valid_times"]) * frames_per_interval
+        else:
+            frame_count = minimum_frames + 1
+            frames_per_interval = frame_count + 1
+        timeline["frames_per_interval"] = frames_per_interval
+        timeline["camera_runtime_seconds"] = frame_count
+        timeline["frame_count"] = frame_count
     if horizontal_section is not None:
         requested_pressure = float(horizontal_section["pressure_hpa"])
         with Dataset(netcdf_file) as dataset:
@@ -509,8 +544,33 @@ def prepare_animation(
     }
 
     camera_sequence = None
-    if camera_orbit is not None and require_value(camera_orbit, ("enabled",), f"de cámara de {product_name}"):
-        camera_sequence = create_camera_orbit(animation["camera"], scene, timeline, runtime_directory / "camera_sequence.xml", product_name)
+    if trajectory is not None and require_value(trajectory, ("enabled",), f"de cámara de {product_name}"):
+        camera_sequence = create_camera_orbit(animation["camera"], scene, trajectory, runtime_directory / "camera_sequence.xml", product_name)
+        if not for_render:
+            sequence = ET.parse(camera_sequence).getroot()
+            sequence_keys = sequence.findall("SequenceKey")
+            sequence_lines = [
+                f"CameraSequences\\sequences\\1\\name={sequence.attrib['name']}",
+                f"CameraSequences\\sequences\\1\\tension={sequence.attrib['tension']}",
+                f"CameraSequences\\sequences\\1\\SequenceKeys\\size={len(sequence_keys)}",
+            ]
+            for index, key in enumerate(sequence_keys, 1):
+                for name, value in key.attrib.items():
+                    property_name = "advanceTimeStep" if name == "advanceTimestep" else name
+                    if name in ("advanceTimestep", "isOrthographic"):
+                        value = "true" if value == "1" else "false"
+                    sequence_lines.append(f"CameraSequences\\sequences\\1\\SequenceKeys\\{index}\\{property_name}={value}")
+            sequence_lines.append("CameraSequences\\sequences\\size=1")
+            session_text = session_file.read_text(encoding="utf-8")
+            for setting in ("CameraSequences\\sequences\\size=0", "Animation\\used_camera_sequence=-1", "Animation\\enable_camera_animation=false"):
+                if setting not in session_text:
+                    raise RuntimeError(f"La sesión base de {product_name} no contiene la configuración de cámara: {setting}.")
+            session_text = session_text.replace("CameraSequences\\sequences\\size=0", "\n".join(sequence_lines), 1)
+            session_text = session_text.replace("Animation\\used_camera_sequence=-1", "Animation\\used_camera_sequence=0", 1)
+            session_text = session_text.replace("Animation\\enable_camera_animation=false", "Animation\\enable_camera_animation=true", 1)
+            if len(timeline["valid_times"]) == 1:
+                session_text = session_text.replace("Animation\\enable_time_animation=true", "Animation\\enable_time_animation=false", 1)
+            session_file.write_text(session_text, encoding="utf-8")
     context["camera_sequence"] = camera_sequence
 
     files = {
@@ -586,6 +646,7 @@ def prepare_animation(
     return {
         "animation": animation,
         "metadata": metadata,
+        "timeline": timeline,
         "runtime_directory": runtime_directory,
         "files": files,
         "actor_files": actor_files,
@@ -711,28 +772,37 @@ def render_animation(preparation: dict[str, object], conda_executable: str, envi
     frame_glob = frames_directory / "frame-FN*.png"
     if not list(frames_directory.glob("frame-FN*.png")):
         raise RuntimeError("Met.3D terminó sin escribir fotogramas PNG para la animación.")
+    metadata = preparation["metadata"]
+    timeline = preparation["timeline"]
+    first_time = metadata["valid_times"][0]
+    frame_names = {frame.name for frame in frames_directory.glob("frame-FN*.png")}
     if "camera_sequence" in files:
-        metadata = preparation["metadata"]
-        timeline = build_timeline(animation, metadata, str(animation["name"]))
-        first_time = metadata["valid_times"][0]
-        frame_names = {frame.name for frame in frames_directory.glob("frame-FN*.png")}
-        selected_timestamps = set()
-        for valid_time in metadata["valid_times"]:
-            if (valid_time - first_time).total_seconds() > timeline["range_seconds"]:
-                break
-            timestamp = valid_time.strftime("%Y-%m-%dT%H%M%SZ")
-            selected_timestamps.add(timestamp)
-            if not any(name.endswith(f"-{timestamp}.png") for name in frame_names):
-                raise RuntimeError(
-                    f"La animación {animation['name']} de {metadata['center']}-{metadata['model']} "
-                    f"no generó fotogramas para el plazo {valid_time}; revise la sincronización de cámara y tiempo."
-                )
-        for frame_name in frame_names:
-            match = re.search(r"(\d{4}-\d{2}-\d{2}T\d{6}Z)\.png$", frame_name)
-            timestamp = match.group(1) if match else ""
-            if timestamp not in selected_timestamps:
-                raise RuntimeError(f"La animación {animation['name']} generó un fotograma fuera de los plazos seleccionados: {frame_name}.")
-
+        minimum_frames = int(animation["camera"]["trajectory"]["minimum_frames"])
+        if len(frame_names) < minimum_frames or len(frame_names) not in (timeline["frame_count"] - 1, timeline["frame_count"], timeline["frame_count"] + 1):
+            raise RuntimeError(f"La trayectoria de {animation['name']} esperaba aproximadamente {timeline['frame_count']} fotogramas y Met.3D generó {len(frame_names)}.")
+    selected_timestamps = set()
+    for valid_time in metadata["valid_times"]:
+        if (valid_time - first_time).total_seconds() > timeline["range_seconds"]:
+            break
+        timestamp = valid_time.strftime("%Y-%m-%dT%H%M%SZ")
+        selected_timestamps.add(timestamp)
+        if not any(name.endswith(f"-{timestamp}.png") for name in frame_names):
+            raise RuntimeError(
+                f"La animación {animation['name']} de {metadata['center']}-{metadata['model']} "
+                f"no generó fotogramas para el plazo {valid_time}; revise la sincronización de cámara y tiempo."
+            )
+        if "camera_sequence" not in files and sum(name.endswith(f"-{timestamp}.png") for name in frame_names) != 1:
+            raise RuntimeError(f"La animación {animation['name']} requiere un fotograma para el plazo {valid_time}.")
+    for frame_name in frame_names:
+        match = re.search(r"(\d{4}-\d{2}-\d{2}T\d{6}Z)\.png$", frame_name)
+        timestamp = match.group(1) if match else ""
+        if timestamp not in selected_timestamps:
+            raise RuntimeError(f"La animación {animation['name']} generó un fotograma fuera de los plazos seleccionados: {frame_name}.")
+    for index, frame_name in enumerate(sorted(frame_names)):
+        time_index = min(index // timeline["frames_per_interval"], len(timeline["valid_times"]) - 1) if "camera_sequence" in files else index
+        expected_time = timeline["valid_times"][time_index].strftime("%Y-%m-%dT%H%M%SZ")
+        if not frame_name.endswith(f"-{expected_time}.png"):
+            raise RuntimeError(f"La animación {animation['name']} no sincronizó el fotograma {frame_name} con el plazo {expected_time}.")
     output = animation["output"]
     video_file.parent.mkdir(parents=True, exist_ok=True)
     ffmpeg_command = [
