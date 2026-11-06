@@ -1,0 +1,65 @@
+; Un solo raycaster combina RH y TPE con funciones de transferencia propias.
+[FileFormat]
+met3dVersion=2.0.0b11/Oct26
+
+[MActor]
+actorName={% if cold_air %}Friaje DVR TPE y RH{% else %}Humedad relativa DVR > {{ relative_humidity.threshold_percent }} %{% endif %}
+header\NWPMultiVarActor\numVariables={% if cold_air %}2{% else %}1{% endif %}
+header\NWPVolumeRaycasterActor\numIsoValues=0
+header\Variable_0\dataLoaderID={{ dataset_name }}
+header\Variable_0\ensembleUtilizedMembers=0
+header\Variable_0\groupDefinedByUUID=true
+header\Variable_0\levelType=1
+header\Variable_0\uuid=@Variant(\0\0\0\x7f\0\0\0\x6QUuid\0\x8V<A\r\xb5J\x80\xb5\xc\xe1G_\x90lF)
+header\Variable_0\variableName={{ variables.relative_humidity }}
+{% if cold_air %}
+header\Variable_1\dataLoaderID={{ dataset_name }} derived
+header\Variable_1\ensembleUtilizedMembers=0
+header\Variable_1\groupDefinedByUUID=true
+header\Variable_1\levelType=1
+header\Variable_1\uuid=@Variant(\0\0\0\x7f\0\0\0\x6QUuid\0lj\xbc\asxD\x89\x80\xcc\xfb}Quc\x13)
+header\Variable_1\variableName=equivalent_potential_temperature
+properties\actor_variables\%7B6c6abc07-7378-4489-80cc-fb7d51756313%7D\SmoothFilter\smooth_mode=0
+properties\actor_variables\%7B6c6abc07-7378-4489-80cc-fb7d51756313%7D\VerticalRegrid\regrid_mode=no regrid
+properties\actor_variables\%7B6c6abc07-7378-4489-80cc-fb7d51756313%7D\data_source_id={{ dataset_name }} derived
+properties\actor_variables\%7B6c6abc07-7378-4489-80cc-fb7d51756313%7D\init_time_control_index=1
+properties\actor_variables\%7B6c6abc07-7378-4489-80cc-fb7d51756313%7D\selected_members=0
+properties\actor_variables\%7B6c6abc07-7378-4489-80cc-fb7d51756313%7D\valid_time_control_index=2
+properties\actor_variables\%7B6c6abc07-7378-4489-80cc-fb7d51756313%7D\var_display_name=equivalent_potential_temperature (Pressure Levels)
+properties\actor_variables\%7B6c6abc07-7378-4489-80cc-fb7d51756313%7D\var_name_level_type=equivalent_potential_temperature (Pressure Levels)
+properties\actor_variables\%7B6c6abc07-7378-4489-80cc-fb7d51756313%7D\transfer_function=TPE [K]
+properties\second_var_enabled=true
+properties\second_observed_var=@Variant(\0\0\0\x7f\0\0\0\x6QUuid\0lj\xbc\asxD\x89\x80\xcc\xfb}Quc\x13)
+{% endif %}
+properties\actor_enabled=true
+properties\actor_variables\%7B08563c41-0db5-4a80-b50c-e1475f906c46%7D\SmoothFilter\smooth_mode=0
+properties\actor_variables\%7B08563c41-0db5-4a80-b50c-e1475f906c46%7D\VerticalRegrid\regrid_mode=no regrid
+properties\actor_variables\%7B08563c41-0db5-4a80-b50c-e1475f906c46%7D\data_source_id={{ dataset_name }}
+properties\actor_variables\%7B08563c41-0db5-4a80-b50c-e1475f906c46%7D\init_time_control_index=1
+properties\actor_variables\%7B08563c41-0db5-4a80-b50c-e1475f906c46%7D\selected_members=0
+properties\actor_variables\%7B08563c41-0db5-4a80-b50c-e1475f906c46%7D\valid_time_control_index=2
+properties\actor_variables\%7B08563c41-0db5-4a80-b50c-e1475f906c46%7D\var_display_name={{ variables.relative_humidity }} (Pressure Levels)
+properties\actor_variables\%7B08563c41-0db5-4a80-b50c-e1475f906c46%7D\var_name_level_type={{ variables.relative_humidity }} (Pressure Levels)
+properties\actor_variables\%7B08563c41-0db5-4a80-b50c-e1475f906c46%7D\transfer_function=Humedad relativa [%]
+properties\bounding_box={{ relative_humidity.bounding_box_index }}
+properties\bounding_box_enabled=true
+properties\cast_shadows=false
+properties\dithering=true
+properties\dithering_strength=1
+properties\observed_var=@Variant(\0\0\0\x7f\0\0\0\x6QUuid\0\x8V<A\r\xb5J\x80\xb5\xc\xe1G_\x90lF)
+properties\ray_step_size={{ [relative_humidity.ray_step_size, cold_air.ray_step_size] | min if cold_air else relative_humidity.ray_step_size }}
+properties\reference_scale=1
+properties\reference_scale_unit=1
+properties\receive_shadows=false
+properties\render_mode=2
+properties\z_scale_transparency_correction=1
+properties\wire_frame_enabled=false
+
+[Metadata]
+actorConfigType=Volume raycaster
+
+[components]
+Bounding%20box\bottomPressure_hPa={{ relative_humidity.pressure.bottom_hpa }}
+Bounding%20box\horizontal2DCoords={{ scene.area.horizontal2d_coords }}
+Bounding%20box\topPressure_hPa={{ relative_humidity.pressure.top_hpa }}
+Bounding%20box\useBoundingBox={{ scene.bounding_boxes.relative_humidity }}

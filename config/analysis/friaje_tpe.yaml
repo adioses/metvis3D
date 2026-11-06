@@ -1,0 +1,38 @@
+# Revisión horizontal del mismo umbral y dominio usados en Met.3D.
+scene: config/met3d/scenes/south_america.yaml
+
+variables:
+  air_temperature: tmpprs
+  specific_humidity: spfhprs
+  wind_u: ugrdprs
+  wind_v: vgrdprs
+  surface_pressure: pressfc
+
+analysis:
+  pressure_levels_hpa: [925, 850, 700]
+  equivalent_potential_temperature_threshold_k: 320.0
+  # También admite una lista de plazos nativos, por ejemplo [0, 24, 48].
+  forecast_hours: all_available
+
+cartography:
+  # Rutas relativas al ambiente Conda, sin descargas durante la ejecución.
+  directory_in_environment: share/met3d/third-party/naturalearth
+  coastlines: ne_50m_coastline.shp
+  country_boundaries: ne_50m_admin_0_boundary_lines_land.shp
+
+plot:
+  cold_air_colour: '#70b5e8'
+  warmer_air_colour: '#ffffff'
+  missing_colour: '#bdbdbd'
+  below_surface_colour: '#d8c4a5'
+  threshold_line_colour: '#17629b'
+  wind_colour: '#303030'
+  wind_spacing_degrees: 5.0
+  wind_scale_m_s: 500.0
+  wind_reference_m_s: 20.0
+  graticule_spacing_degrees: 20.0
+  figure_size_inches: [19.2, 6.8]
+
+output:
+  directory: outputs/analysis/friaje-tpe
+  dpi: 150

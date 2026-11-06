@@ -12,9 +12,12 @@ import xml.etree.ElementTree as ET
 from datetime import datetime
 from pathlib import Path
 
+import numpy as np
 import yaml
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
 from netCDF4 import Dataset, num2date
+
+from visualize.met3D.netcdf import prepare_visualization_data
 
 
 XVFB_SERVER_ARGUMENTS = "-screen 0 1920x1080x24 +extension GLX +render -noreset"
@@ -123,8 +126,8 @@ def build_timeline(animation: dict, metadata: dict, product_name: str) -> dict:
     return {"valid_times": selected_times, "range_seconds": int((selected_times[-1] - selected_times[0]).total_seconds()), "step_seconds": int(step_seconds) if step_seconds is not None else None}
 
 
-def create_runtime_directory(project_root: Path, model_identifier: str) -> Path:
-    """Limpia solamente el runtime transitorio del modelo que se ejecutará."""
+def create_runtime_directory(project_root: Path, model_identifier: str, reuse_netcdf: bool = False) -> Path:
+    """Prepara el runtime y conserva sus archivos hasta validar los datos reutilizables."""
 
     model_slug = re.sub(r"[^a-z0-9-]+", "-", model_identifier.lower()).strip("-")
     if not model_slug:
@@ -132,9 +135,9 @@ def create_runtime_directory(project_root: Path, model_identifier: str) -> Path:
 
     runtime_root = project_root / "met3D" / ".runtime"
     runtime_directory = runtime_root / model_slug
-    if runtime_directory.exists():
+    if runtime_directory.exists() and not reuse_netcdf:
         shutil.rmtree(runtime_directory)
-    runtime_directory.mkdir(parents=True)
+    runtime_directory.mkdir(parents=True, exist_ok=reuse_netcdf)
     return runtime_directory
 
 
@@ -342,6 +345,7 @@ def prepare_animation(
     animation_file: Path,
     netcdf_file: Path,
     for_render: bool = False,
+    reuse_netcdf: bool = False,
 ) -> dict[str, object]:
     """Materializa los archivos temporales de una animación Met.3D completa."""
 
@@ -361,11 +365,67 @@ def prepare_animation(
     potential_vorticity = get_enabled_object(objects, "potential_vorticity", product_name)
     horizontal_section = get_enabled_object(objects, "horizontal_section", product_name)
     jet = get_enabled_object(objects, "jet", product_name)
-    if potential_vorticity is None and jet is None:
+    cold_air = get_enabled_object(objects, "cold_air", product_name)
+    cloud_cover = get_enabled_object(objects, "cloud_cover", product_name)
+    relative_humidity = get_enabled_object(objects, "relative_humidity", product_name)
+    if potential_vorticity is None and jet is None and cold_air is None and relative_humidity is None:
         raise RuntimeError(f"La animación {product_name} debe habilitar al menos un objeto tridimensional.")
 
     required_variables: list[str] = []
     derived_variable_mappings: list[str] = []
+    if relative_humidity is not None:
+        if surface_pressure is None:
+            raise RuntimeError(f"La humedad relativa de {product_name} requiere presión superficial para excluir niveles bajo tierra.")
+        required_variables.append(str(require_value(variables, ("relative_humidity",), f"de animación {product_name}")))
+        for key in ("pressure", "threshold_percent", "maximum_percent", "opacity", "hue", "chroma", "luminance", "colourmap", "reverse_colourmap", "colour_steps", "ray_step_size"):
+            require_value(relative_humidity, (key,), f"de humedad relativa de {product_name}")
+        if not 0 <= float(relative_humidity["threshold_percent"]) < float(relative_humidity["maximum_percent"]) <= 100:
+            raise RuntimeError(f"La humedad relativa de {product_name} requiere 0 <= threshold_percent < maximum_percent <= 100.")
+        if not 0 <= float(relative_humidity["opacity"]) <= 1:
+            raise RuntimeError(f"La opacidad de humedad relativa de {product_name} debe estar entre 0 y 1.")
+        if int(relative_humidity["colour_steps"]) < 2 or float(relative_humidity["ray_step_size"]) <= 0:
+            raise RuntimeError(f"El DVR de humedad relativa de {product_name} requiere al menos dos pasos de color y ray_step_size positivo.")
+        # El primer float32 superior al umbral deja RH igual al umbral transparente.
+        relative_humidity["minimum_percent"] = float(np.nextafter(
+            np.float32(relative_humidity["threshold_percent"]), np.float32(np.inf),
+        ))
+        if relative_humidity["minimum_percent"] >= float(relative_humidity["maximum_percent"]):
+            raise RuntimeError(f"El intervalo de humedad relativa de {product_name} no contiene valores float32 sobre el umbral.")
+        position = require_value(relative_humidity, ("colourbar_position",), f"de humedad relativa de {product_name}")
+        relative_humidity["colourbar_rectangle"] = encode_qrectf_variant(*(
+            require_value(position, (key,), f"de leyenda de humedad relativa de {product_name}")
+            for key in ("x", "y", "width", "height")
+        ))
+    if cold_air is not None:
+        if surface_pressure is None:
+            raise RuntimeError(f"La masa fría de {product_name} requiere presión superficial para excluir niveles bajo tierra.")
+        for role in ("air_temperature", "specific_humidity"):
+            name = str(require_value(variables, (role,), f"de animación {product_name}"))
+            required_variables.append(name)
+            derived_variable_mappings.append(f"{role}:{name}")
+        require_value(cold_air, ("equivalent_potential_temperature_threshold_k",), f"de masa fría de {product_name}")
+        for key in ("minimum_tpe_k", "opacity", "hue", "chroma", "luminance", "colourmap", "reverse_colourmap", "colour_steps", "ray_step_size"):
+            require_value(cold_air, (key,), f"de masa fría de {product_name}")
+        if not 0 <= float(cold_air["opacity"]) <= 1:
+            raise RuntimeError(f"La opacidad de la masa fría de {product_name} debe estar entre 0 y 1.")
+        # El campo derivado es float32: el límite anterior al umbral respeta TPE < umbral.
+        cold_air["maximum_tpe_k"] = float(np.nextafter(
+            np.float32(cold_air["equivalent_potential_temperature_threshold_k"]), np.float32(-np.inf),
+        ))
+        if float(cold_air["minimum_tpe_k"]) >= cold_air["maximum_tpe_k"]:
+            raise RuntimeError(f"El mínimo de la escala TPE de {product_name} debe ser inferior al umbral.")
+        if int(cold_air["colour_steps"]) < 2 or float(cold_air["ray_step_size"]) <= 0:
+            raise RuntimeError(f"El DVR de {product_name} requiere al menos dos pasos de color y ray_step_size positivo.")
+    if cloud_cover is not None:
+        if cold_air is None:
+            raise RuntimeError(f"La nubosidad de {product_name} requiere el objeto de masa fría.")
+        required_variables.append(str(require_value(variables, ("cloud_cover",), f"de animación {product_name}")))
+        for key in ("minimum_percent", "maximum_percent", "maximum_opacity", "colour_steps", "luminance", "ray_step_size"):
+            require_value(cloud_cover, (key,), f"de nubosidad de {product_name}")
+        if not 0 <= float(cloud_cover["minimum_percent"]) < float(cloud_cover["maximum_percent"]) <= 100:
+            raise RuntimeError(f"La nubosidad de {product_name} requiere 0 <= minimum_percent < maximum_percent <= 100.")
+        if not 0 <= float(cloud_cover["maximum_opacity"]) <= 1:
+            raise RuntimeError(f"La opacidad de nubosidad de {product_name} debe estar entre 0 y 1.")
     if potential_vorticity is not None:
         for variable_name in ("air_temperature", "wind_u", "wind_v"):
             required_variables.append(str(require_value(variables, (variable_name,), f"de animación {product_name}")))
@@ -410,10 +470,58 @@ def prepare_animation(
             required_variables.append(str(require_value(variables, ("geopotential_height",), f"de animación {product_name}")))
     require_value(animation, ("camera",), f"de animación {product_name}")
 
+    # Cada producto declara los campos y las máscaras de su NetCDF de visualización.
+    data_preparation = animation.get("data_preparation")
+    if reuse_netcdf and data_preparation is None:
+        raise RuntimeError(f"La animación {product_name} no genera un NetCDF de visualización para --reuse-temporal.")
+    if (cold_air is not None or relative_humidity is not None) and data_preparation is None:
+        raise RuntimeError(f"La animación {product_name} requiere data_preparation para excluir niveles bajo tierra.")
+    preparation_variables = {}
+    surface_pressure_name = None
+    if data_preparation is not None:
+        definitions = require_value(data_preparation, ("variables",), f"de preparación de {product_name}")
+        if not isinstance(definitions, dict):
+            raise RuntimeError(f"data_preparation.variables de {product_name} debe ser un mapa YAML.")
+        for role, definition in definitions.items():
+            name = str(require_value(variables, (role,), f"de animación {product_name}"))
+            preparation_variables[name] = definition
+        missing_fields = [name for name in required_variables if name not in preparation_variables]
+        if missing_fields:
+            raise RuntimeError(f"La preparación de {product_name} no declara los campos requeridos por sus objetos: {', '.join(missing_fields)}.")
+        required_variables.extend(preparation_variables)
+        pressure_role = data_preparation.get("surface_pressure")
+        if pressure_role is not None:
+            surface_pressure_name = str(require_value(variables, (pressure_role,), f"de animación {product_name}"))
+    if relative_humidity is not None:
+        humidity_name = variables["relative_humidity"]
+        if preparation_variables[humidity_name].get("mask_below_surface") is not True or surface_pressure_name is None:
+            raise RuntimeError(f"La humedad relativa {humidity_name} de {product_name} requiere mask_below_surface: true y presión superficial en data_preparation.")
+        if cold_air is not None:
+            # El DVR conjunto comparte caja: limitar sólo las entradas de TPE a su capa.
+            pressure = require_value(cold_air, ("pressure",), f"de masa fría de {product_name}")
+            for role in ("air_temperature", "specific_humidity"):
+                name = variables[role]
+                preparation_variables[name] = {**preparation_variables[name], "pressure": pressure}
+
     # Revisar la corrida NetCDF y derivar su identidad, fecha y duración.
     metadata = read_netcdf_metadata(netcdf_file, list(dict.fromkeys(required_variables)), product_name)
     model_identifier = f"{metadata['center']}-{metadata['model']}"
     timeline = build_timeline(animation, metadata, product_name)
+    if relative_humidity is not None:
+        with Dataset(netcdf_file) as dataset:
+            humidity = dataset[variables["relative_humidity"]]
+            description = f"{model_identifier}, corrida {metadata['forecast_date']}, {netcdf_file.name}"
+            if humidity.dimensions != ("time", "lev", "latitude", "longitude") or getattr(humidity, "units", "") != "%":
+                raise RuntimeError(f"{description}: {humidity.name} requiere dimensiones isobáricas canónicas y unidades %.")
+            if getattr(dataset["lev"], "units", "") != "millibars":
+                raise RuntimeError(f"{description}: lev requiere unidades millibars para el volumen de humedad relativa.")
+            if relative_humidity["pressure"] == "all_available":
+                pressure_levels = dataset["lev"][:]
+                relative_humidity["pressure"] = {
+                    "bottom_hpa": min(float(np.max(pressure_levels)), float(scene["view_pressure"]["bottom_hpa"])),
+                    "top_hpa": max(float(np.min(pressure_levels)), float(scene["view_pressure"]["top_hpa"])),
+                }
+                print(f"Humedad relativa {description}: todos los niveles nativos se conservan; caja visible {relative_humidity['pressure']['bottom_hpa']:g}--{relative_humidity['pressure']['top_hpa']:g} hPa.")
     trajectory = animation["camera"].get("trajectory")
     if trajectory and require_value(trajectory, ("enabled",), f"de cámara de {product_name}"):
         trajectory_type = require_value(trajectory, ("type",), f"de cámara de {product_name}")
@@ -462,7 +570,27 @@ def prepare_animation(
                         raise RuntimeError(f"{model_identifier}, {netcdf_file.name}: {variable_name} sin datos a {pressure_hpa:g} hPa, tiempo {valid_time}.")
         horizontal_section["effective_pressure_hpa"] = pressure_hpa
         print(f"Sección horizontal {model_identifier}, {netcdf_file.name}: nivel solicitado {requested_pressure:g} hPa; nivel utilizado {pressure_hpa:g} hPa.")
-    runtime_directory = create_runtime_directory(project_root, model_identifier)
+    runtime_directory = create_runtime_directory(
+        project_root, f"{model_identifier}-{product_name}" if data_preparation is not None else model_identifier,
+        reuse_netcdf=reuse_netcdf,
+    )
+    # Preparar los campos y máscaras declarados antes de calcular diagnósticos en Met.3D.
+    visualization_file = netcdf_file
+    if data_preparation is not None:
+        visualization_file = prepare_visualization_data(
+            netcdf_file, runtime_directory / "above_surface.nc", preparation_variables,
+            timeline["valid_times"], surface_pressure_name,
+            reuse_netcdf=reuse_netcdf,
+        )
+        if reuse_netcdf:
+            # Renovar la escena sólo después de validar el NetCDF que debe conservarse.
+            for previous_file in runtime_directory.iterdir():
+                if previous_file == visualization_file:
+                    continue
+                if previous_file.is_dir() and not previous_file.is_symlink():
+                    shutil.rmtree(previous_file)
+                else:
+                    previous_file.unlink()
 
     # Completar geometría derivada sin ocultar los valores declarados en YAML.
     area = require_value(scene, ("area",), "de escena Met.3D")
@@ -483,7 +611,7 @@ def prepare_animation(
     )
     scene["bounding_boxes"] = {"scene": f"{scene['name']}_scene"}
     object_bounding_boxes: list[dict] = []
-    for object_name, configuration in (("potential_vorticity", potential_vorticity), ("jet", jet)):
+    for object_name, configuration in (("potential_vorticity", potential_vorticity), ("jet", jet), ("cold_air", cold_air), ("cloud_cover", cloud_cover), ("relative_humidity", relative_humidity)):
         if configuration is None:
             continue
         pressure = require_value(configuration, ("pressure",), f"del objeto {object_name} de {product_name}")
@@ -528,8 +656,8 @@ def prepare_animation(
     )
     context = {
         "dataset_name": dataset_name,
-        "netcdf_directory": netcdf_file.parent.resolve(),
-        "netcdf_filename": netcdf_file.name,
+        "netcdf_directory": visualization_file.parent.resolve(),
+        "netcdf_filename": visualization_file.name,
         "variables": variables,
         "scene": scene,
         "derived_variable_mappings": derived_variable_mappings,
@@ -537,6 +665,9 @@ def prepare_animation(
         "potential_vorticity": potential_vorticity,
         "horizontal_section": horizontal_section,
         "jet": jet,
+        "cold_air": cold_air,
+        "cloud_cover": cloud_cover,
+        "relative_humidity": relative_humidity,
         "timeline": timeline,
         "frames_directory": frames_directory.resolve(),
         "session_file": session_file.resolve() if session_file.exists() else "",
@@ -628,6 +759,20 @@ def prepare_animation(
             context,
         )
         actor_files.append(files["jet"])
+    if cold_air is not None:
+        files["cold_air_colourbar"] = render_template(template_environment, "cold_air_colourbar.actor.conf.j2", runtime_directory / "cold_air_colourbar.actor.conf", context)
+        actor_files.append(files["cold_air_colourbar"])
+        if relative_humidity is None:
+            files["cold_air"] = render_template(template_environment, "cold_air.actor.conf.j2", runtime_directory / "cold_air.actor.conf", context)
+            actor_files.append(files["cold_air"])
+    if cloud_cover is not None:
+        files["cloud_colourbar"] = render_template(template_environment, "cloud_colourbar.actor.conf.j2", runtime_directory / "cloud_colourbar.actor.conf", context)
+        files["cloud_cover"] = render_template(template_environment, "cloud_cover.actor.conf.j2", runtime_directory / "cloud_cover.actor.conf", context)
+        actor_files.extend((files["cloud_colourbar"], files["cloud_cover"]))
+    if relative_humidity is not None:
+        files["relative_humidity_colourbar"] = render_template(template_environment, "relative_humidity_colourbar.actor.conf.j2", runtime_directory / "relative_humidity_colourbar.actor.conf", context)
+        files["relative_humidity"] = render_template(template_environment, "relative_humidity.actor.conf.j2", runtime_directory / "relative_humidity.actor.conf", context)
+        actor_files.extend((files["relative_humidity_colourbar"], files["relative_humidity"]))
     context["session_file"] = session_file.resolve() if session_file.exists() else ""
     files["preferences"] = render_template(
         template_environment,

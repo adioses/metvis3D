@@ -1,0 +1,50 @@
+; Sólo RH estrictamente superior al umbral aporta color y opacidad.
+[FileFormat]
+met3dVersion=2.0.0b11/Oct26
+
+[MActor]
+actorName=Humedad relativa [%]
+properties\actor_enabled=true
+properties\clamp_hcl_colours=true
+properties\colourmap_transformation=0
+properties\colourmap_type={{ 0 if relative_humidity.colourmap == 'HCL' else 2 }}
+properties\extend_above_max=true
+properties\extend_below_min=false
+properties\hcl\alpha_1={{ relative_humidity.opacity }}
+properties\hcl\alpha_2={{ relative_humidity.opacity }}
+properties\hcl\chroma_1={{ relative_humidity.chroma }}
+properties\hcl\chroma_2={{ relative_humidity.chroma }}
+properties\hcl\hue_1={{ relative_humidity.hue }}
+properties\hcl\hue_2={{ relative_humidity.hue }}
+properties\hcl\luminance_1={{ relative_humidity.luminance }}
+properties\hcl\luminance_2={{ relative_humidity.luminance }}
+properties\hcl\power_1_c=1
+properties\hcl\power_2_l=1
+properties\hcl\power_alpha=1
+properties\hcl\type=3
+properties\label_properties\display_description=RH > {{ relative_humidity.threshold_percent }} %
+properties\label_properties\label_value_scaling=1
+properties\label_properties\labels_enabled=true
+properties\label_properties\label_size=20
+properties\label_properties\number_of_tick_labels=4
+properties\label_properties\number_of_tick_marks=4
+properties\max_value={{ relative_humidity.maximum_percent }}
+properties\min_value={{ relative_humidity.minimum_percent }}
+properties\opacity_enabled=true
+properties\orientation=0
+{% if relative_humidity.colourmap != 'HCL' %}
+properties\predefined\alpha_1={{ relative_humidity.opacity }}
+properties\predefined\alpha_2={{ relative_humidity.opacity }}
+properties\predefined\colourmap={{ relative_humidity.colourmap }}
+properties\predefined\lightness_adjustment=0
+properties\predefined\power_alpha=1
+properties\predefined\saturation_adjustment=0
+{% endif %}
+properties\reverse_range_enabled={{ relative_humidity.reverse_colourmap | string | lower }}
+properties\significant_digits=3
+properties\steps={{ relative_humidity.colour_steps }}
+properties\viewport_position_and_size={{ relative_humidity.colourbar_rectangle }}
+properties\wire_frame_enabled=false
+
+[Metadata]
+actorConfigType=Transfer function scalar to colour (colour map)

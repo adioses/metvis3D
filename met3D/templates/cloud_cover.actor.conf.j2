@@ -1,0 +1,46 @@
+; Cobertura nubosa por nivel como volumen, sin convertir porcentajes en condensado.
+[FileFormat]
+met3dVersion=2.0.0b11/Oct26
+
+[MActor]
+actorName=Cobertura nubosa 3D
+header\NWPMultiVarActor\numVariables=1
+header\NWPVolumeRaycasterActor\numIsoValues=0
+header\Variable_0\dataLoaderID={{ dataset_name }}
+header\Variable_0\ensembleUtilizedMembers=0
+header\Variable_0\groupDefinedByUUID=true
+header\Variable_0\levelType=1
+header\Variable_0\uuid=@Variant(\0\0\0\x7f\0\0\0\x6QUuid\0\x8V<A\r\xb5J\x80\xb5\xc\xe1G_\x90lE)
+header\Variable_0\variableName={{ variables.cloud_cover }}
+properties\actor_enabled=true
+properties\actor_variables\%7B08563c41-0db5-4a80-b50c-e1475f906c45%7D\SmoothFilter\smooth_mode=0
+properties\actor_variables\%7B08563c41-0db5-4a80-b50c-e1475f906c45%7D\VerticalRegrid\regrid_mode=no regrid
+properties\actor_variables\%7B08563c41-0db5-4a80-b50c-e1475f906c45%7D\data_source_id={{ dataset_name }}
+properties\actor_variables\%7B08563c41-0db5-4a80-b50c-e1475f906c45%7D\init_time_control_index=1
+properties\actor_variables\%7B08563c41-0db5-4a80-b50c-e1475f906c45%7D\selected_members=0
+properties\actor_variables\%7B08563c41-0db5-4a80-b50c-e1475f906c45%7D\valid_time_control_index=2
+properties\actor_variables\%7B08563c41-0db5-4a80-b50c-e1475f906c45%7D\var_display_name={{ variables.cloud_cover }} (Pressure Levels)
+properties\actor_variables\%7B08563c41-0db5-4a80-b50c-e1475f906c45%7D\var_name_level_type={{ variables.cloud_cover }} (Pressure Levels)
+properties\actor_variables\%7B08563c41-0db5-4a80-b50c-e1475f906c45%7D\transfer_function=Cobertura nubosa [%]
+properties\bounding_box={{ cloud_cover.bounding_box_index }}
+properties\bounding_box_enabled=true
+properties\cast_shadows=false
+properties\dithering=true
+properties\dithering_strength=1
+properties\observed_var=@Variant(\0\0\0\x7f\0\0\0\x6QUuid\0\x8V<A\r\xb5J\x80\xb5\xc\xe1G_\x90lE)
+properties\ray_step_size={{ cloud_cover.ray_step_size }}
+properties\reference_scale=1
+properties\reference_scale_unit=1
+properties\receive_shadows=false
+properties\render_mode=2
+properties\z_scale_transparency_correction=1
+properties\wire_frame_enabled=false
+
+[Metadata]
+actorConfigType=Volume raycaster
+
+[components]
+Bounding%20box\bottomPressure_hPa={{ cloud_cover.pressure.bottom_hpa }}
+Bounding%20box\horizontal2DCoords={{ scene.area.horizontal2d_coords }}
+Bounding%20box\topPressure_hPa={{ cloud_cover.pressure.top_hpa }}
+Bounding%20box\useBoundingBox={{ scene.bounding_boxes.cloud_cover }}

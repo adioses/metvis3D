@@ -1,0 +1,40 @@
+; El porcentaje de cobertura controla la opacidad del volumen nuboso.
+[FileFormat]
+met3dVersion=2.0.0b11/Oct26
+
+[MActor]
+actorName=Cobertura nubosa [%]
+properties\actor_enabled=true
+properties\clamp_hcl_colours=true
+properties\colourmap_type=0
+properties\extend_above_max=true
+properties\extend_below_min=false
+properties\hcl\alpha_1=0
+properties\hcl\alpha_2={{ cloud_cover.maximum_opacity }}
+properties\hcl\chroma_1=0
+properties\hcl\chroma_2=0
+properties\hcl\hue_1=0
+properties\hcl\hue_2=0
+properties\hcl\luminance_1={{ cloud_cover.luminance }}
+properties\hcl\luminance_2={{ cloud_cover.luminance }}
+properties\hcl\power_1_c=1
+properties\hcl\power_2_l=1
+properties\hcl\power_alpha=1
+properties\hcl\type=3
+properties\label_properties\display_description=Cobertura nubosa [%]
+properties\label_properties\label_value_scaling=1
+properties\label_properties\labels_enabled=true
+properties\label_properties\label_size=20
+properties\label_properties\number_of_tick_labels=5
+properties\label_properties\number_of_tick_marks=5
+properties\max_value={{ cloud_cover.maximum_percent }}
+properties\min_value={{ cloud_cover.minimum_percent }}
+properties\opacity_enabled=true
+properties\orientation=0
+properties\reverse_range_enabled=false
+properties\steps={{ cloud_cover.colour_steps }}
+properties\viewport_position_and_size=@Variant(\0\0\0\x14?\xeb\x33\x33\x33\x33\x33\x33?\xe9\x99\x99\x99\x99\x99\x9a?\xa9\x99\x99\x99\x99\x99\x9a?\xe3\x33\x33\x33\x33\x33\x33)
+properties\wire_frame_enabled=false
+
+[Metadata]
+actorConfigType=Transfer function scalar to colour (colour map)

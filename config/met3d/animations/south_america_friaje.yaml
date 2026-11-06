@@ -1,0 +1,101 @@
+# Ingreso frío: volumen de TPE < 320 K, sin requerir nubosidad.
+# El NetCDF y la corrida se reciben por línea de comandos.
+name: friaje
+scene: config/met3d/scenes/south_america.yaml
+dataset_name: standardized_data
+session_file: met3D/sessions/south_america_base.session.config
+
+variables:
+  air_temperature: tmpprs
+  specific_humidity: spfhprs
+  relative_humidity: rhprs
+  surface_pressure: pressfc
+
+# Los nombres se resuelven desde variables; la máscara sólo corresponde a niveles isobáricos.
+data_preparation:
+  surface_pressure: surface_pressure
+  variables:
+    air_temperature:
+      units: K
+      mask_below_surface: true
+    specific_humidity:
+      units: kg/kg
+      mask_below_surface: true
+    relative_humidity:
+      units: '%'
+      mask_below_surface: true
+    surface_pressure:
+      units: Pa
+      mask_below_surface: false
+
+objects:
+  surface_pressure:
+    enabled: true
+
+  cold_air:
+    enabled: true
+    pressure:
+      bottom_hpa: 1000.0
+      top_hpa: 700.0
+    # DVR: la paleta distingue la TPE bajo el umbral, con opacidad uniforme.
+    equivalent_potential_temperature_threshold_k: 320.0
+    # Inicio de la rampa; valores inferiores conservan el color extremo y la opacidad.
+    minimum_tpe_k: 250.0
+    opacity: 0.6
+    hue: 250.0
+    chroma: 55.0
+    luminance: 65.0
+    colourmap: YlGnBu
+    reverse_colourmap: true
+    colour_steps: 256
+    ray_step_size: 0.1
+
+  relative_humidity:
+    enabled: true
+    # Conserva todos los niveles nativos; la caja visible se limita a la escena.
+    # pressure: all_available
+    pressure:
+      bottom_hpa: 1000.0
+      top_hpa: 700.0
+    threshold_percent: 70.0
+    maximum_percent: 100.0
+    opacity: 0.2
+    hue: 310.0
+    chroma: 35.0
+    luminance: 75.0
+    # grey es la paleta nativa de grises; HCL recupera el color anterior.
+    colourmap: hot_wind
+    reverse_colourmap: true
+    colour_steps: 256
+    ray_step_size: 0.1
+    # Posición en coordenadas gráficas de Met.3D, separada de la leyenda TPE.
+    colourbar_position:
+      x: -0.95
+      y: 0.8
+      width: 0.045
+      height: 0.5
+
+# Cámara fija para seguir el avance sin movimiento de la vista.
+camera:
+  origin:
+    longitude: -30.441743850708008
+    latitude: -115.15374755859375
+    world_z: 99.71694946289062
+  y_axis:
+    longitude: -0.2489262819290161
+    latitude: 0.6657854318618774
+    world_z: 0.7033936381340027
+  z_axis:
+    longitude: -0.24633359909057617
+    latitude: 0.6588489413261414
+    world_z: -0.710798442363739
+
+timeline:
+  selection: all_available
+
+output:
+  width_px: 1920
+  height_px: 1080
+  frames_per_second: 6
+  video_codec: libx264
+  pixel_format: yuv420p

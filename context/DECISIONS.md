@@ -97,9 +97,9 @@ campos, niveles ni grilla.
 
 ## D-010 — Flujo actual de animaciones con Met.3D
 
-**Fecha:** 2026-10-19, actualizada 2026-11-02
+**Fecha:** 2026-10-19, actualizada 2026-11-06
 **Decisión:** Met.3D opera de forma independiente bajo `config/met3d/`, con
-escenas, animaciones, sesiones y runtime propios. DANA y jet usan el motor
+escenas, animaciones, sesiones y runtime propios. DANA, jet y friaje usan el motor
 común `src/visualize/met3d_animation.py`; sus lanzadores reciben un NetCDF
 estandarizado y materializan configuraciones temporales por corrida.
 
@@ -109,15 +109,29 @@ fotogramas a la sesión, por lo que la sesión base no contiene rutas de usuario
 Las cámaras, objetos, intervalos de presión y salida se mantienen en los YAML
 de cada animación, sin intervenir en ParaView.
 
+Los productos que declaran `data_preparation` utilizan el preparador genérico
+`src/visualize/met3D/netcdf.py` para escribir sus campos y máscaras en un
+NetCDF temporal. La creación sigue siendo el comportamiento predeterminado.
+El lanzador de friaje admite `--reuse-temporal` para pruebas: valida el origen,
+variables, unidades, dimensiones, coordenadas, tiempos, máscaras y registro de
+finalización antes de conservar `above_surface.nc` y renovar la escena. Si el
+archivo falta o es incompatible, se detiene sin regenerarlo ni limpiar la
+escena previa. La reutilización no modifica el contrato del NetCDF
+estandarizado ni los datos originales.
+
 La cámara puede permanecer fija o seguir una trayectoria configurable; el
 primer tipo disponible es `orbit`, alrededor del centro geográfico de la
 escena. Con trayectoria, el número de fotogramas se calcula a partir de los
 tiempos disponibles y los mínimos configurados, y un mismo tiempo puede ocupar
 varios fotogramas. Un único tiempo válido permite recorrer la trayectoria con
 el campo fijo. Sin trayectoria se genera un fotograma por tiempo seleccionado.
-La coordenada temporal completa del NetCDF debe estar ordenada y, si contiene
-varios tiempos, tener intervalos regulares; se detiene el proceso ante tiempos
-ausentes, duplicados, desordenados o intervalos irregulares.
+El motor actual exige que la coordenada temporal completa esté ordenada y, si
+contiene varios tiempos, tenga intervalos regulares; se detiene ante tiempos
+ausentes, duplicados, desordenados o cambios de intervalo. Esta última
+restricción es una limitación de la implementación de animación, no del
+contrato de estandarización. El calendario nativo mixto de IFS descrito en
+D-013 es válido; su soporte en apertura/render queda pendiente, sin interpolar
+datos ni alterar los plazos del modelo.
 
 ## D-011 — Flujo actual de animaciones con ParaView
 
@@ -162,3 +176,43 @@ controles `.ctl`.
 **Impacto:** GFS usa plazos de 3 h hasta 384 h. IFS usa plazos de 3 h hasta
 144 h y de 6 h entre 150 y 240 h. El horizonte solicitado es inclusivo, debe
 coincidir con el calendario del modelo y genera un único NetCDF por corrida.
+
+## D-014 — Animación de ingreso frío con DVR de TPE y humedad relativa
+
+**Fecha:** 2026-11-02, actualizada 2026-11-06
+**Decisión:** se acepta la composición de friaje con **un único DVR
+multivariable de TPE < 320 K y RH > 70 %**, ambos entre 1000 y 700 hPa,
+sobre `south_america` con cámara fija. Cada campo conserva su función de
+color y opacidad; un actor conjunto evita la advertencia de artefactos de
+dos DVR superpuestos. Met.3D deriva TPE mediante Bolton (1980) desde
+temperatura y humedad específica; RH se lee directamente de `rhprs` en %.
+La cobertura nubosa `tcdcprs` deja de ser requisito del producto.
+
+La configuración aceptada usa `YlGnBu` invertida y opacidad 0.6 para TPE,
+y `hot_wind` invertida y opacidad 0.2 para RH. Umbrales, intervalos verticales,
+paletas y opacidades se declaran en el YAML. Las desigualdades son estrictas:
+TPE igual a 320 K y RH igual a 70 % son transparentes. Una región entera
+con TPE inferior al umbral sigue siendo visible aunque no haya un cruce en
+su interior. La opacidad acumulada depende también del espesor recorrido.
+
+**Impacto:** el caso de referencia de la revisión actual es GFS del
+2026-06-20 00 UTC. La composición visual queda aprobada; la identificación
+y validación meteorológica de un evento, y la pertinencia general de los
+umbrales, se evalúan por separado. RH alta indica cercanía a saturación y
+no se interpreta directamente como nube ni como prueba de desplazamiento
+de aire húmedo.
+
+El preparador escribe un único temporal bajo
+`met3D/.runtime/<centro>-<modelo>-friaje/`, con temperatura, humedad específica,
+RH y presión superficial. Se mantienen coordenadas y niveles nativos,
+float32, compresión y tiempo ilimitado; se preservan huecos y se excluyen
+las celdas donde `lev * 100 > pressfc` o falta presión superficial. Para el
+DVR conjunto se enmascaran también las entradas de TPE fuera de su capa
+configurada. El temporal no contiene TPE calculada; su preparación conserva
+el NetCDF estandarizado sin alterarlo, interpolar campos ni completar valores.
+
+La variante anterior de isosuperficie de TPE y cobertura nubosa queda como
+antecedente, con sus verificaciones históricas en `docs/met3d.md`. El IFS de
+junio dispone de las variables del producto actual, pero su calendario mixto
+continúa limitado por D-010. La composición aceptada no implica que el render
+de todas las corridas y modelos haya sido validado.

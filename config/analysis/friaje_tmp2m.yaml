@@ -1,0 +1,57 @@
+# Comparación a la misma hora de días consecutivos, sin referencia climatológica.
+variables:
+  temperature: tmp2m
+  wind_u: ugrd10m
+  wind_v: vgrd10m
+
+domain:
+  west: -85.0
+  south: -30.0
+  east: -50.0
+  north: 5.0
+
+analysis:
+  lag_hours: 24
+  # Hora nocturna presente tanto en los plazos de 3 h como en los de 6 h de IFS.
+  # Es una muestra a hora fija, no la mínima de toda la noche.
+  nighttime:
+    local_utc_offset_hours: -5
+    local_hour: 1
+  # Comparación complementaria con el diagnóstico anterior; null permite usar sólo T2m.
+  tpe_comparison_configuration: config/analysis/friaje_tpe.yaml
+  # Referencias geográficas aproximadas; se usa la celda nativa más próxima.
+  reference_points:
+    - name: Puerto Maldonado
+      latitude: -12.6
+      longitude: -69.2
+    - name: Pucallpa
+      latitude: -8.4
+      longitude: -74.6
+    - name: Iquitos
+      latitude: -3.75
+      longitude: -73.25
+
+cartography:
+  directory_in_environment: share/met3d/third-party/naturalearth
+  coastlines: ne_50m_coastline.shp
+  country_boundaries: ne_50m_admin_0_boundary_lines_land.shp
+
+plot:
+  temperature_levels_c: [-30, -20, -10, 0, 10, 15, 20, 25, 30, 35, 40, 45, 50]
+  temperature_colourmap: turbo
+  # Positivo = enfriamiento (azul); negativo = calentamiento (rojo).
+  drop_levels_c: [-20, -15, -10, -8, -6, -4, -2, 0, 2, 4, 6, 8, 10, 15, 20]
+  drop_colourmap: RdBu
+  maximum_time_colourmap: viridis
+  missing_colour: '#d0d0d0'
+  wind_spacing_degrees: 2.5
+  wind_scale_m_s: 250
+  wind_reference_m_s: 10
+  graticule_spacing_degrees: 5
+  map_size_inches: [13, 8.4]
+  series_size_inches: [14, 10]
+  series_tick_interval_hours: 12
+
+output:
+  directory: outputs/analysis/friaje-tmp2m
+  dpi: 150

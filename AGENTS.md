@@ -84,18 +84,13 @@ web piloto e integración/documentación del flujo.
   datos o propósito de una etapa; no deben describir sintaxis evidente de
   Python.
 
-## Límites y cambios
-
-- No incorporar base de datos, Node.js ni otro servicio web hasta confirmar su
-  disponibilidad y necesidad en el servidor final.
-- Mantener configuraciones, código y documentación separados de los datos y productos pesados.
-- No borrar ni alterar archivos existentes sin autorización expresa.
-
 ## Documentación de seguimiento
 
 - `context/STATUS.md`: foto actual del avance, bloqueos y siguiente actividad.
 - `context/DECISIONS.md`: registro de decisiones confirmadas del proyecto.
 - `context/ROADMAP.md`: hitos contractuales y resultados esperados.
 
-Actualizar el estado o las decisiones sólo cuando exista un avance verificable,
-un acuerdo confirmado o un cambio material de alcance.
+En todo esto proyecto es una investigación y desarrollo por ende cualquier pedido de elaboración y/o codigo se considera
+como temporal hasta indicar que se ha testeado y aprobado lo implementado, una vez hecho esto recien se procede a actualizar 
+documentación y los archivos de context
+
