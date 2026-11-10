@@ -1,0 +1,23 @@
+; Rótulos derivados de la misma escala de transferencia, sin cambiar el campo.
+[FileFormat]
+met3dVersion=2.0.0b11/Oct26
+
+[MActor]
+actorName=T2m Celsius labels
+header\TextActor\num_texts={{ surface_temperature.colourbar.labels | length }}
+{% for label in surface_temperature.colourbar.labels %}
+properties\Text%20{{ loop.index }}\text={{ label.text }}
+properties\Text%20{{ loop.index }}\Font={{ surface_temperature.colourbar.font }}
+properties\Text%20{{ loop.index }}\font_size={{ surface_temperature.colourbar.font_size }}
+properties\Text%20{{ loop.index }}\font_colour={{ surface_temperature.colourbar.font_colour_variant }}
+properties\Text%20{{ loop.index }}\bbox_enabled=false
+properties\Text%20{{ loop.index }}\coordinate_space=0
+properties\Text%20{{ loop.index }}\anchor={{ label.anchor }}
+properties\Text%20{{ loop.index }}\position={{ label.position }}
+properties\Text%20{{ loop.index }}\enabled=true
+{% endfor %}
+properties\actor_enabled=true
+properties\wire_frame_enabled=false
+
+[Metadata]
+actorConfigType=Text

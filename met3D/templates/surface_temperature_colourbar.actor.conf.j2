@@ -1,0 +1,33 @@
+; T2m permanece en kelvin; los rótulos Celsius se dibujan con un actor Text.
+[FileFormat]
+met3dVersion=2.0.0b11/Oct26
+
+[MActor]
+actorName=T2m [K]
+properties\actor_enabled=true
+properties\colourmap_type=2
+properties\colourmap_transformation=0
+properties\clamp_hcl_colours=true
+properties\extend_above_max=true
+properties\extend_below_min=true
+properties\min_value={{ surface_temperature.minimum_k }}
+properties\max_value={{ surface_temperature.maximum_k }}
+properties\steps={{ surface_temperature.colour_steps }}
+properties\opacity_enabled=true
+properties\predefined\colourmap={{ surface_temperature.colourmap }}
+properties\predefined\alpha_1=1
+properties\predefined\alpha_2=1
+properties\predefined\power_alpha=1
+properties\predefined\lightness_adjustment=0
+properties\predefined\saturation_adjustment=0
+properties\reverse_range_enabled={{ surface_temperature.reverse_colourmap | string | lower }}
+properties\orientation=0
+properties\label_properties\labels_enabled=false
+properties\label_properties\display_description=
+properties\label_properties\number_of_tick_labels=0
+properties\label_properties\number_of_tick_marks=0
+properties\viewport_position_and_size={{ surface_temperature.colourbar_rectangle }}
+properties\wire_frame_enabled=false
+
+[Metadata]
+actorConfigType=Transfer function scalar to colour (colour map)

@@ -381,6 +381,7 @@ def prepare_animation(
         raise RuntimeError(f"La sección 'objects' de {product_name} debe ser un mapa YAML.")
 
     surface_pressure = get_enabled_object(objects, "surface_pressure", product_name)
+    surface_temperature = get_enabled_object(surface_pressure, "temperature", product_name) if surface_pressure is not None else None
     potential_vorticity = get_enabled_object(objects, "potential_vorticity", product_name)
     horizontal_section = get_enabled_object(objects, "horizontal_section", product_name)
     jet = get_enabled_object(objects, "jet", product_name)
@@ -393,6 +394,52 @@ def prepare_animation(
 
     required_variables: list[str] = []
     derived_variable_mappings: list[str] = []
+    if surface_temperature is not None:
+        required_variables.append(str(require_value(variables, ("air_temperature_2m",), f"de animación {product_name}")))
+        description = f"de T2m sobre el relieve de {product_name}"
+        for key in ("minimum_c", "maximum_c", "kelvin_offset", "colourmap", "reverse_colourmap", "colour_steps", "colourbar"):
+            require_value(surface_temperature, (key,), description)
+        minimum_c = float(surface_temperature["minimum_c"])
+        maximum_c = float(surface_temperature["maximum_c"])
+        kelvin_offset = float(surface_temperature["kelvin_offset"])
+        if not all(math.isfinite(value) for value in (minimum_c, maximum_c, kelvin_offset)) or not minimum_c < maximum_c:
+            raise RuntimeError(f"La escala de T2m de {product_name} requiere límites finitos y minimum_c < maximum_c.")
+        if int(surface_temperature["colour_steps"]) < 2:
+            raise RuntimeError(f"La escala de T2m de {product_name} requiere al menos dos pasos de color.")
+        # La transferencia recibe kelvin; únicamente sus rótulos muestran Celsius.
+        surface_temperature["minimum_k"] = minimum_c + kelvin_offset
+        surface_temperature["maximum_k"] = maximum_c + kelvin_offset
+        colourbar = surface_temperature["colourbar"]
+        for key in ("position", "ticks_c", "title", "font", "font_size", "font_colour", "label_spacing", "title_spacing"):
+            require_value(colourbar, (key,), description)
+        x, y, width, height = (float(require_value(colourbar, ("position", key), description)) for key in ("x", "y", "width", "height"))
+        if not (-1 <= x < x + width <= 1 and -1 <= y - height < y <= 1):
+            raise RuntimeError(f"La leyenda de T2m de {product_name} requiere un rectángulo positivo dentro de la pantalla.")
+        ticks = colourbar["ticks_c"]
+        if (
+            not isinstance(ticks, list) or len(ticks) < 2
+            or any(not minimum_c <= float(value) <= maximum_c for value in ticks)
+            or any(float(b) <= float(a) for a, b in zip(ticks, ticks[1:]))
+        ):
+            raise RuntimeError(f"Los rótulos Celsius de {product_name} deben estar ordenados dentro de la escala de T2m.")
+        if not colourbar["font"] or not math.isfinite(float(colourbar["font_size"])) or float(colourbar["font_size"]) <= 0:
+            raise RuntimeError(f"La leyenda de T2m de {product_name} requiere fuente y tamaño de letra positivo y finito.")
+        surface_temperature["colourbar_rectangle"] = encode_qrectf_variant(x, y, width, height)
+        colourbar["font_colour_variant"] = encode_text_colour_variant(colourbar["font_colour"], description)
+        colourbar["labels"] = [
+            {
+                "text": f"{float(value):g}", "anchor": 10,
+                "position": encode_text_position_variant(
+                    x - float(colourbar["label_spacing"]),
+                    y - height + (float(value) - minimum_c) / (maximum_c - minimum_c) * height,
+                ),
+            }
+            for value in ticks
+        ]
+        colourbar["labels"].append({
+            "text": colourbar["title"], "anchor": 5,
+            "position": encode_text_position_variant(x + width / 2, y + float(colourbar["title_spacing"])),
+        })
     if relative_humidity is not None:
         if surface_pressure is None:
             raise RuntimeError(f"La humedad relativa de {product_name} requiere presión superficial para excluir niveles bajo tierra.")
@@ -527,6 +574,17 @@ def prepare_animation(
     metadata = read_netcdf_metadata(netcdf_file, list(dict.fromkeys(required_variables)), product_name)
     model_identifier = f"{metadata['center']}-{metadata['model']}"
     timeline = build_timeline(animation, metadata, product_name)
+    if surface_temperature is not None:
+        with Dataset(netcdf_file, "r") as dataset:
+            description = f"{model_identifier}, corrida {metadata['forecast_date']}, {netcdf_file.name}"
+            for role, units in (("air_temperature_2m", "K"), ("surface_pressure", "Pa")):
+                field = dataset[variables[role]]
+                if field.dimensions != ("time", "latitude", "longitude") or getattr(field, "units", "") != units:
+                    raise RuntimeError(f"{description}: {field.name} requiere dimensiones de superficie canónicas y unidades {units}.")
+                for time_index, valid_time in enumerate(timeline["valid_times"]):
+                    values = np.ma.masked_invalid(field[time_index])
+                    if np.ma.getmaskarray(values).any():
+                        raise RuntimeError(f"{description}: {field.name} contiene datos ausentes en {valid_time}; no se puede colorear el relieve con T2m.")
     if time_label is not None:
         description = f"Etiqueta temporal de {product_name}, {model_identifier}, {netcdf_file.name}"
         for key in ("text_prefix", "text_suffix", "font", "font_size", "position", "font_colour", "background_colour"):
@@ -702,6 +760,7 @@ def prepare_animation(
         "cold_air": cold_air,
         "cloud_cover": cloud_cover,
         "relative_humidity": relative_humidity,
+        "surface_temperature": surface_temperature,
         "time_label": time_label,
         "model_name": metadata["model"].upper(),
         "initial_valid_time": encode_utc_time_variant(timeline["valid_times"][0]),
@@ -751,6 +810,10 @@ def prepare_animation(
     if camera_sequence is not None:
         files["camera_sequence"] = camera_sequence
     actor_files = [files[name] for name in ("basemap", "volume")]
+    if surface_temperature is not None:
+        files["surface_temperature_colourbar"] = render_template(template_environment, "surface_temperature_colourbar.actor.conf.j2", runtime_directory / "surface_temperature_colourbar.actor.conf", context)
+        files["surface_temperature_labels"] = render_template(template_environment, "surface_temperature_labels.actor.conf.j2", runtime_directory / "surface_temperature_labels.actor.conf", context)
+        actor_files.extend((files["surface_temperature_colourbar"], files["surface_temperature_labels"]))
     if surface_pressure is not None:
         files["surface_pressure"] = render_template(
             template_environment,
