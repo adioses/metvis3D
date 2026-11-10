@@ -1,0 +1,28 @@
+[FileFormat]
+met3dVersion=2.0.0b11/Oct26
+
+[MActor]
+actorName=Model and valid time
+header\TextActor\num_texts=1
+; El marcador t0 sigue Valid time (índice 2), también durante la órbita.
+properties\Text%201\%25t0={{ initial_valid_time }}
+properties\Text%201\%25t0_control_index=2
+properties\Text%201\%25t0_offset=0
+properties\Text%201\%25t0_offset_unit=2
+; Se conserva el formato nativo: Met.3D 2.0.0b11 no recupera su formato personalizado.
+properties\Text%201\text={{ model_name }} | {{ time_label.text_prefix }} %t0 {{ time_label.text_suffix }}
+properties\Text%201\Font={{ time_label.font }}
+properties\Text%201\font_size={{ time_label.font_size }}
+properties\Text%201\font_colour={{ time_label.font_colour_variant }}
+properties\Text%201\bbox_enabled=true
+properties\Text%201\bbox_colour={{ time_label.background_colour_variant }}
+; Clip Space y anclaje superior central: el texto permanece fijo en pantalla.
+properties\Text%201\coordinate_space=0
+properties\Text%201\anchor=5
+properties\Text%201\position={{ time_label.position_variant }}
+properties\Text%201\enabled=true
+properties\actor_enabled=true
+properties\wire_frame_enabled=false
+
+[Metadata]
+actorConfigType=Text

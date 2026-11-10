@@ -18,6 +18,19 @@ variables:
   geopotential_height: hgtprs
 
 objects:
+  # Modelo y tiempo válido UTC, fijos en la parte superior central.
+  time_label:
+    enabled: true
+    text_prefix: 'Válido:'
+    text_suffix: UTC
+    font: DejaVu Sans
+    font_size: 32
+    position:
+      x: 0.0
+      y: 0.94
+    font_colour: [255, 255, 255, 255]
+    background_colour: [0, 0, 0, 160]
+
   surface_pressure:
     enabled: true
 

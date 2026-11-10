@@ -149,6 +149,25 @@ def encode_qrectf_variant(west: float, south: float, width: float, height: float
     return f"@Variant({escaped_bytes})"
 
 
+def encode_text_position_variant(x: float, y: float) -> str:
+    """Serializa la posición de una etiqueta fija en pantalla como QPointF."""
+
+    encoded_position = struct.pack(">I2d", 26, x, y)
+    escaped_bytes = "".join("\\0" if value == 0 else f"\\x{value:02x}" for value in encoded_position)
+    return f"@Variant({escaped_bytes})"
+
+
+def encode_text_colour_variant(rgba: list[int], description: str) -> str:
+    """Serializa el color y la transparencia de una etiqueta como QColor."""
+
+    if not isinstance(rgba, list) or len(rgba) != 4 or any(type(value) is not int or not 0 <= value <= 255 for value in rgba):
+        raise RuntimeError(f"{description}: el color requiere cuatro enteros RGBA entre 0 y 255.")
+    red, green, blue, alpha = (value * 257 for value in rgba)
+    encoded_colour = struct.pack(">IB5H", 67, 1, alpha, red, green, blue, 0)
+    escaped_bytes = "".join("\\0" if value == 0 else f"\\x{value:02x}" for value in encoded_colour)
+    return f"@Variant({escaped_bytes})"
+
+
 def encode_saved_views_variant(number_of_views: int) -> str:
     """Serializa los índices de vistas que Met.3D debe capturar en batch."""
 
@@ -368,6 +387,7 @@ def prepare_animation(
     cold_air = get_enabled_object(objects, "cold_air", product_name)
     cloud_cover = get_enabled_object(objects, "cloud_cover", product_name)
     relative_humidity = get_enabled_object(objects, "relative_humidity", product_name)
+    time_label = get_enabled_object(objects, "time_label", product_name)
     if potential_vorticity is None and jet is None and cold_air is None and relative_humidity is None:
         raise RuntimeError(f"La animación {product_name} debe habilitar al menos un objeto tridimensional.")
 
@@ -507,6 +527,20 @@ def prepare_animation(
     metadata = read_netcdf_metadata(netcdf_file, list(dict.fromkeys(required_variables)), product_name)
     model_identifier = f"{metadata['center']}-{metadata['model']}"
     timeline = build_timeline(animation, metadata, product_name)
+    if time_label is not None:
+        description = f"Etiqueta temporal de {product_name}, {model_identifier}, {netcdf_file.name}"
+        for key in ("text_prefix", "text_suffix", "font", "font_size", "position", "font_colour", "background_colour"):
+            require_value(time_label, (key,), description)
+        if not metadata["model"]:
+            raise RuntimeError(f"{description}: el NetCDF no declara un nombre de modelo utilizable.")
+        if not time_label["font"] or not math.isfinite(float(time_label["font_size"])) or float(time_label["font_size"]) <= 0:
+            raise RuntimeError(f"{description}: se requieren fuente y tamaño de letra positivo y finito.")
+        x, y = (float(require_value(time_label, ("position", key), description)) for key in ("x", "y"))
+        if not (-1 <= x <= 1 and -1 <= y <= 1):
+            raise RuntimeError(f"{description}: la posición en pantalla requiere x e y entre -1 y 1.")
+        time_label["position_variant"] = encode_text_position_variant(x, y)
+        time_label["font_colour_variant"] = encode_text_colour_variant(time_label["font_colour"], description)
+        time_label["background_colour_variant"] = encode_text_colour_variant(time_label["background_colour"], description)
     if relative_humidity is not None:
         with Dataset(netcdf_file) as dataset:
             humidity = dataset[variables["relative_humidity"]]
@@ -668,6 +702,9 @@ def prepare_animation(
         "cold_air": cold_air,
         "cloud_cover": cloud_cover,
         "relative_humidity": relative_humidity,
+        "time_label": time_label,
+        "model_name": metadata["model"].upper(),
+        "initial_valid_time": encode_utc_time_variant(timeline["valid_times"][0]),
         "timeline": timeline,
         "frames_directory": frames_directory.resolve(),
         "session_file": session_file.resolve() if session_file.exists() else "",
@@ -773,6 +810,9 @@ def prepare_animation(
         files["relative_humidity_colourbar"] = render_template(template_environment, "relative_humidity_colourbar.actor.conf.j2", runtime_directory / "relative_humidity_colourbar.actor.conf", context)
         files["relative_humidity"] = render_template(template_environment, "relative_humidity.actor.conf.j2", runtime_directory / "relative_humidity.actor.conf", context)
         actor_files.extend((files["relative_humidity_colourbar"], files["relative_humidity"]))
+    if time_label is not None:
+        files["time_label"] = render_template(template_environment, "time_label.actor.conf.j2", runtime_directory / "time_label.actor.conf", context)
+        actor_files.append(files["time_label"])
     context["session_file"] = session_file.resolve() if session_file.exists() else ""
     files["preferences"] = render_template(
         template_environment,
