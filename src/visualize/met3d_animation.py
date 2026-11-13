@@ -389,6 +389,7 @@ def prepare_animation(
     cloud_cover = get_enabled_object(objects, "cloud_cover", product_name)
     relative_humidity = get_enabled_object(objects, "relative_humidity", product_name)
     time_label = get_enabled_object(objects, "time_label", product_name)
+    pv_render_mode = None
     if potential_vorticity is None and jet is None and cold_air is None and relative_humidity is None:
         raise RuntimeError(f"La animación {product_name} debe habilitar al menos un objeto tridimensional.")
 
@@ -505,10 +506,50 @@ def prepare_animation(
         )
         require_value(potential_vorticity, ("pressure", "bottom_hpa"), f"del objeto PV de {product_name}")
         require_value(potential_vorticity, ("pressure", "top_hpa"), f"del objeto PV de {product_name}")
-        require_value(potential_vorticity, ("isosurface_pvu",), f"del objeto PV de {product_name}")
+        # Las configuraciones anteriores conservan su isosuperficie sin cambios.
+        pv_render_mode = potential_vorticity.get("render_mode", "isosurface")
+        if pv_render_mode == "isosurface":
+            require_value(potential_vorticity, ("isosurface_pvu",), f"del objeto PV de {product_name}")
+        elif pv_render_mode == "dvr":
+            for key in ("threshold_pvu", "ray_step_size", "colour_steps", "colourbar_position"):
+                require_value(potential_vorticity, (key,), f"del DVR de PV de {product_name}")
+            if horizontal_section is None:
+                raise RuntimeError(f"El DVR de PV de {product_name} requiere la sección horizontal como referencia de color.")
+            colour_reference = require_value(horizontal_section, ("potential_vorticity",), f"de sección horizontal de {product_name}")
+            for key in ("minimum_pvu", "maximum_pvu", "hue", "dark_luminance", "light_luminance", "chroma"):
+                require_value(colour_reference, (key,), f"de rampa de PV de {product_name}")
+            minimum_pvu = float(colour_reference["minimum_pvu"])
+            maximum_pvu = float(colour_reference["maximum_pvu"])
+            threshold_pvu = float(potential_vorticity["threshold_pvu"])
+            if (
+                not all(math.isfinite(value) for value in (minimum_pvu, maximum_pvu, threshold_pvu))
+                or not minimum_pvu < threshold_pvu <= maximum_pvu or threshold_pvu >= 0
+            ):
+                raise RuntimeError(f"El DVR de {product_name} requiere minimum_pvu < threshold_pvu <= maximum_pvu y un umbral negativo.")
+            if (
+                not math.isfinite(float(potential_vorticity["ray_step_size"]))
+                or float(potential_vorticity["ray_step_size"]) <= 0
+                or int(potential_vorticity["colour_steps"]) < 2
+            ):
+                raise RuntimeError(f"El DVR de {product_name} requiere ray_step_size positivo y al menos dos pasos de color.")
+            # Recortar la función HCL a PV <= umbral sin estirar sus extremos originales.
+            fraction = (threshold_pvu - minimum_pvu) / (maximum_pvu - minimum_pvu)
+            dark_luminance = float(colour_reference["dark_luminance"])
+            light_luminance = float(colour_reference["light_luminance"])
+            potential_vorticity["minimum_pvu"] = minimum_pvu
+            potential_vorticity["minimum_si"] = minimum_pvu * 1e-6
+            potential_vorticity["maximum_si"] = threshold_pvu * 1e-6
+            potential_vorticity["threshold_luminance"] = dark_luminance + fraction * (light_luminance - dark_luminance)
+            position = potential_vorticity["colourbar_position"]
+            x, y, width, height = (float(require_value(position, (key,), f"de leyenda DVR de {product_name}")) for key in ("x", "y", "width", "height"))
+            if not (-1 <= x < x + width <= 1 and -1 <= y - height < y <= 1):
+                raise RuntimeError(f"La leyenda DVR de {product_name} requiere un rectángulo positivo dentro de la pantalla.")
+            potential_vorticity["colourbar_rectangle"] = encode_qrectf_variant(x, y, width, height)
+        else:
+            raise RuntimeError(f"El modo de PV de {product_name} debe ser 'isosurface' o 'dvr': {pv_render_mode}.")
         opacity = float(require_value(potential_vorticity, ("opacity",), f"del objeto PV de {product_name}"))
         if not 0.0 <= opacity <= 1.0:
-            raise RuntimeError(f"La opacidad de la isosuperficie de PV de {product_name} debe estar entre 0 y 1.")
+            raise RuntimeError(f"La opacidad de PV de {product_name} debe estar entre 0 y 1.")
     if jet is not None:
         for variable_name in ("wind_u", "wind_v"):
             variable = str(require_value(variables, (variable_name,), f"de animación {product_name}"))
@@ -663,7 +704,7 @@ def prepare_animation(
         horizontal_section["effective_pressure_hpa"] = pressure_hpa
         print(f"Sección horizontal {model_identifier}, {netcdf_file.name}: nivel solicitado {requested_pressure:g} hPa; nivel utilizado {pressure_hpa:g} hPa.")
     runtime_directory = create_runtime_directory(
-        project_root, f"{model_identifier}-{product_name}" if data_preparation is not None else model_identifier,
+        project_root, f"{model_identifier}-{product_name}" if data_preparation is not None or pv_render_mode == "dvr" else model_identifier,
         reuse_netcdf=reuse_netcdf,
     )
     # Preparar los campos y máscaras declarados antes de calcular diagnósticos en Met.3D.
@@ -823,15 +864,21 @@ def prepare_animation(
         )
         actor_files.append(files["surface_pressure"])
     if potential_vorticity is not None:
-        context["pv_isovalue_si"] = f"{float(potential_vorticity['isosurface_pvu']) * 1e-6:.8g}"
-        opacity_byte = round(float(potential_vorticity["opacity"]) * 255)
-        context["pv_isosurface_colour"] = (
-            f"@Variant(\\0\\0\\0\\x43\\x1\\x{opacity_byte:02x}\\x{opacity_byte:02x}"
-            "\\x75\\x75\\x5f\\x5f\\xd6\\xd6\\0\\0)"
-        )
+        if pv_render_mode == "dvr":
+            files["pv_dvr_colourbar"] = render_template(template_environment, "pv_dvr_colourbar.actor.conf.j2", runtime_directory / "pv_dvr_colourbar.actor.conf", context)
+            actor_files.append(files["pv_dvr_colourbar"])
+            pv_template = "potential_vorticity_dvr.actor.conf.j2"
+        else:
+            context["pv_isovalue_si"] = f"{float(potential_vorticity['isosurface_pvu']) * 1e-6:.8g}"
+            opacity_byte = round(float(potential_vorticity["opacity"]) * 255)
+            context["pv_isosurface_colour"] = (
+                f"@Variant(\\0\\0\\0\\x43\\x1\\x{opacity_byte:02x}\\x{opacity_byte:02x}"
+                "\\x75\\x75\\x5f\\x5f\\xd6\\xd6\\0\\0)"
+            )
+            pv_template = "potential_vorticity.actor.conf.j2"
         files["potential_vorticity"] = render_template(
             template_environment,
-            "potential_vorticity.actor.conf.j2",
+            pv_template,
             runtime_directory / "potential_vorticity.actor.conf",
             context,
         )

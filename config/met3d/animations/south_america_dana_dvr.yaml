@@ -1,0 +1,115 @@
+# Variante provisional: DVR de PV negativa, con rampa HCL de la sección 2D.
+# El NetCDF se recibe por línea de comandos; no se fija una corrida aquí.
+name: dana_dvr
+scene: config/met3d/scenes/south_america.yaml
+
+# Identificadores estables: permiten reutilizar la sesión con cualquier
+# modelo o fecha que respete el contrato NetCDF estandarizado.
+dataset_name: standardized_data
+# Sesión base nativa: sólo vista, cámara y controles temporales. Los objetos
+# y cajas provienen siempre de los .conf renderizados para cada corrida.
+session_file: met3D/sessions/south_america_base.session.config
+
+variables:
+  air_temperature: tmpprs
+  wind_u: ugrdprs
+  wind_v: vgrdprs
+  surface_pressure: pressfc
+  geopotential_height: hgtprs
+
+objects:
+  # Modelo y tiempo válido UTC, fijos en la parte superior central.
+  time_label:
+    enabled: true
+    text_prefix: 'Válido:'
+    text_suffix: UTC
+    font: DejaVu Sans
+    font_size: 32
+    position:
+      x: 0.0
+      y: 0.94
+    font_colour: [255, 255, 255, 255]
+    background_colour: [0, 0, 0, 160]
+
+  surface_pressure:
+    enabled: true
+
+  potential_vorticity:
+    enabled: true
+    pressure:
+      bottom_hpa: 500.0
+      top_hpa: 250.0
+    render_mode: dvr
+    # Incluye el umbral y conserva visibles los valores más negativos que la escala.
+    threshold_pvu: -2.0
+    opacity: 0.7
+    ray_step_size: 0.1
+    # El DVR evalúa el tramo de la misma función HCL; la sección conserva sus ocho bandas.
+    colour_steps: 256
+    colourbar_position:
+      x: -0.90
+      y: 0.8
+      width: 0.045
+      height: 0.5
+
+  horizontal_section:
+    enabled: true
+    pressure_hpa: 350.0
+    potential_vorticity:
+      minimum_pvu: -10.0
+      maximum_pvu: -2.0
+      colour_steps: 8
+      hue: 290.0
+      dark_luminance: 30.0
+      light_luminance: 85.0
+      chroma: 60.0
+    wind:
+      spacing_degrees: 2.0
+      min_length_degrees: 0.1
+      max_length_degrees: 0.75
+      line_width: 0.04
+    geopotential_height:
+      enabled: true
+      minimum_gpm: 0.0
+      maximum_gpm: 26000.0
+      interval_gpm: 120.0
+
+# La orientación se almacena en el formato nativo y legible de cámara de
+# Met.3D. origin es la posición de cámara; los ejes y/z fijan su orientación.
+# Puede ajustarse en la interfaz y copiarse de vuelta a este YAML.
+camera:
+  trajectory:
+    enabled: true
+    type: orbit
+    minimum_frames: 81
+    frames_per_interval: 2
+    keyframes: 17
+    zoom_factor: 0.94
+    target_world_z: 0.0
+    zoom_fraction: 0.1
+    end_hold_fraction: 0.125
+    tension: 0.0
+  origin:
+    longitude: -30.441743850708008
+    latitude: -115.15374755859375
+    world_z: 99.71694946289062
+  y_axis:
+    longitude: -0.2489262819290161
+    latitude: 0.6657854318618774
+    world_z: 0.7033936381340027
+  z_axis:
+    longitude: -0.24633359909057617
+    latitude: 0.6588489413261414
+    world_z: -0.710798442363739
+
+timeline:
+  # all_available usa el último tiempo presente en el NetCDF.
+  # Alternativa: max_forecast_hours: 120.
+  selection: all_available
+
+output:
+  width_px: 1920
+  height_px: 1080
+  frames_per_second: 6
+  video_codec: libx264
+  pixel_format: yuv420p
