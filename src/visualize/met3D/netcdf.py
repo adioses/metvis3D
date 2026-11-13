@@ -102,7 +102,7 @@ def prepare_visualization_data(
         # La reutilización compara origen, selección y máscaras sin leer los volúmenes.
         source_stat = netcdf_file.stat()
         preparation = json.dumps({
-            "version": 1,
+            "version": 2,
             "surface_pressure_variable": surface_pressure_variable,
             "variables": {
                 name: {
@@ -149,6 +149,8 @@ def prepare_visualization_data(
                         expected_shape = (len(valid_times), *field.shape[1:])
                         if result.dimensions != field.dimensions or result.shape != expected_shape or result.dtype != np.dtype("f4") or getattr(result, "units", None) != variables[name]["units"]:
                             raise RuntimeError(f"{reuse_description}: {name} tiene dimensiones, tamaño, precisión o unidades incompatibles. {instruction}")
+                        if not hasattr(result, "_FillValue") or not hasattr(result, "missing_value") or result.missing_value != result._FillValue:
+                            raise RuntimeError(f"{reuse_description}: {name} requiere missing_value igual a _FillValue para que Met.3D reconozca los datos ausentes. {instruction}")
             except OSError as error:
                 raise RuntimeError(f"{description}: no se pudo leer el NetCDF de visualización {netcdf_output}: {error}. {instruction}") from error
             print(f"Datos de {description}: se reutiliza {netcdf_output} tras validar origen, variables, coordenadas, tiempos y máscaras.", flush=True)
@@ -184,6 +186,8 @@ def prepare_visualization_data(
                     fill_value=getattr(field, "_FillValue", default_fillvals["f4"]),
                 )
                 result.setncatts({key: field.getncattr(key) for key in field.ncattrs() if key != "_FillValue"})
+                # Met.3D reconoce missing_value; usar el mismo valor que representa las celdas enmascaradas.
+                result.missing_value = np.float32(result._FillValue)
 
             # Calcular una sola máscara por plazo y compartirla entre los campos solicitados.
             for time_index, (source_index, valid_time) in enumerate(zip(time_indexes, valid_times)):
