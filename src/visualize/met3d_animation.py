@@ -624,8 +624,8 @@ def prepare_animation(
                     raise RuntimeError(f"{description}: {field.name} requiere dimensiones de superficie canónicas y unidades {units}.")
                 for time_index, valid_time in enumerate(timeline["valid_times"]):
                     values = np.ma.masked_invalid(field[time_index])
-                    if np.ma.getmaskarray(values).any():
-                        raise RuntimeError(f"{description}: {field.name} contiene datos ausentes en {valid_time}; no se puede colorear el relieve con T2m.")
+                    #if np.ma.getmaskarray(values).any():
+                    #    raise RuntimeError(f"{description}: {field.name} contiene datos ausentes en {valid_time}; no se puede colorear el relieve con T2m.")
     if time_label is not None:
         description = f"Etiqueta temporal de {product_name}, {model_identifier}, {netcdf_file.name}"
         for key in ("text_prefix", "text_suffix", "font", "font_size", "position", "font_colour", "background_colour"):

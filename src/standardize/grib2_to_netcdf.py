@@ -12,11 +12,12 @@ from collections.abc import Sequence
 from datetime import datetime
 from pathlib import Path
 
+import eccodes
 import numpy as np
 import pandas as pd
 import pygrib
 import yaml
-from netCDF4 import Dataset, date2num
+from netCDF4 import Dataset, date2num, default_fillvals
 from shapely.geometry import box
 
 
@@ -26,8 +27,8 @@ logger = logging.getLogger(__name__)
 class Grib2ToNetCDF:
     """Convierte archivos GRIB2 en un único NetCDF.
 
-    WGRIB2 interpreta los metadatos de los mensajes con nomenclatura NCEP usando
-    wgrib2.PyGRIB lee las coordenadas y las matrices meteorológicas mediante. 
+    WGRIB2 interpreta los metadatos de los mensajes con nomenclatura NCEP.
+    PyGRIB lee coordenadas y matrices; ecCodes lee las marcas de ausencia.
     El inventario extrae información de las variables directamente del archivo
     GRIB2, luego se agrupan en niveles isobaricos y nombran segun nomenclatura g2ctl;
     las reglas YAML remapean parámetros locales cuandocorresponde. 
@@ -492,7 +493,13 @@ class Grib2ToNetCDF:
 
         # Coordenadas del primer mensaje GRIB.
         with pygrib.open(str(grib_file)) as source_grib:
-            latitude, longitude = source_grib.message(1).latlons()
+            grib_message = source_grib.message(1)
+            if grib_message["gridType"].startswith("reduced"):
+                raise RuntimeError(
+                    f"No se admite expandir una grilla reducida para modelo {self.model}, "
+                    f"corrida {self.forecast_date:%Y%m%d_%H}Z, archivo {grib_file}."
+                )
+            latitude, longitude = grib_message.latlons()
         latitude = latitude[:, 0]
         longitude = longitude[0, :]
 
@@ -589,6 +596,9 @@ class Grib2ToNetCDF:
         longitude_coordinate.units = "degrees_east"
         longitude_coordinate[:] = longitude
 
+        # Definiendo el fill_value para el NetCDF
+        fill_value = np.float32(default_fillvals["f4"])
+
         # Variables meteorológicas según su estructura vertical.
         for variable in self.netcdf_variables.itertuples(index=False):
             pressure_var = variable.is_isobaric
@@ -596,7 +606,8 @@ class Grib2ToNetCDF:
             precision = self.least_significant_digits.get(variable.var_name, 2)
             if precision == "full":
                 precision = None
-            netcdf_variable = dataset.createVariable(variable.var_name, "f4", dimensions, zlib=True, least_significant_digit=precision)
+            netcdf_variable = dataset.createVariable(variable.var_name, "f4", dimensions, zlib=True, least_significant_digit=precision, fill_value=fill_value)
+            netcdf_variable.missing_value = fill_value
             
             netcdf_variable.units = variable.units
             netcdf_variable.long_name = f'{variable.long_name} at Isobaric levels' if pressure_var else f'{variable.long_name} at {variable.level_name}'
@@ -649,6 +660,35 @@ class Grib2ToNetCDF:
                     grib_message = source_grib.message(inventory_row.message_id)
                     self._write_message(dataset, inventory_row, grib_message)
 
+    def _read_grib_values(self, grib_message) -> np.ndarray:
+        """Lee la matriz con una máscara basada en los indicadores del GRIB.
+
+        Si ecCodes declara cero ausentes, conserva todas las celdas como válidas.
+        En los demás casos utiliza el bitmap original en lugar de la máscara de
+        PyGRIB, que puede incluir valores válidos próximos a missingValue.
+        """
+
+        values = np.ma.getdata(grib_message.values)
+        if grib_message["numberOfMissing"] == 0:
+            return values
+
+        if not grib_message["bitmapPresent"]:
+            raise RuntimeError("NO_DATA en este GRIB2 no están indicados como bitmap.")
+
+        # ecCodes permite leer el bitmap que PyGRIB no expone como una matriz numérica.
+        grib_id = eccodes.codes_new_from_message(grib_message.tostring())
+        try:
+            bitmap = eccodes.codes_get_array(grib_id, "bitmap", int)
+        finally:
+            eccodes.codes_release(grib_id)
+
+        # Se reproduce el orden de exploración que PyGRIB aplica a los valores.
+        storage_order = "F" if grib_message["jPointsAreConsecutive"] else "C"
+        missing_mask = (bitmap == 0).reshape(values.shape, order=storage_order)
+        if grib_message["alternativeRowScanning"]:
+            missing_mask[1::2, :] = missing_mask[1::2, ::-1].copy()
+        return np.ma.array(values, mask=missing_mask, copy=False)
+
     def _write_message(self, dataset: Dataset, inventory_row, grib_message) -> None:
         """Selecciona, convierte cuando corresponde y escribe una matriz GRIB.
         
@@ -660,7 +700,8 @@ class Grib2ToNetCDF:
 
         variable_name = inventory_row.var_name
         remapping = self.remappings.get(inventory_row.parameter_signature)
-        values = grib_message.values[np.ix_(self.latitude_indices, self.longitude_indices)]
+        values = self._read_grib_values(grib_message)
+        values = values[np.ix_(self.latitude_indices, self.longitude_indices)]
 
         if remapping:
             values = values * remapping['factor'] + remapping['offset']
