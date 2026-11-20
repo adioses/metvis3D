@@ -21,7 +21,7 @@ src/          Paquetes Python de estandarización y visualización.
 notebooks/    Exploración y ajuste visual; no contiene lógica operativa única.
 met3D/        Sesión y plantillas nativas de Met.3D.
 paraview/     Scripts de render ParaView y datos temporales descartables.
-assets/       DEM, límites y recursos institucionales.
+assets/       DEM, límites, paletas meteorológicas y recursos institucionales.
 data/         Datos de trabajo no versionados.
 outputs/      PNG, videos y productos publicados no versionados.
 docs/         Especificaciones técnicas.
@@ -47,6 +47,22 @@ Las guías operativas para generar videos y ajustar cámaras están en:
 
 - `docs/met3d.md`
 - `docs/paraview.md`
+
+La composición aprobada de anticiclones en Met.3D combina presión al nivel del
+mar por rangos con partículas de viento y rastros de seis horas en todo el
+dominio disponible de Sudamérica. La referencia es IFS del 2026-09-03 00 UTC,
+de +0 a +120 h. La configuración está en
+`config/met3d/animations/south_america_anticyclones.yaml` y la paleta en
+`assets/colormaps/mean_sea_level_pressure.yaml`.
+
+```bash
+conda run -n metvis3d python scripts/run_met3d_anticyclones.py \
+  --netcdf data/standardized/ecmwf-ifs_20260903_00Z.nc \
+  --render
+```
+
+Las opciones de apertura, reutilización del temporal y las verificaciones se
+describen en [la guía Met.3D](docs/met3d.md#anticiclones).
 
 ## Conversión GRIB2 a NetCDF
 

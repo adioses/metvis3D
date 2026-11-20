@@ -1,0 +1,112 @@
+# Composición aprobada el 2026-11-17: altas del Pacífico Sur y del Atlántico Sur.
+name: anticyclones
+scene: config/met3d/scenes/south_america.yaml
+dataset_name: standardized_data
+session_file: met3D/sessions/south_america_base.session.config
+
+variables:
+  mean_sea_level_pressure: presmsl
+  surface_pressure: pressfc
+  wind_u: ugrdprs
+  wind_v: vgrdprs
+  wind_omega: vvelprs
+
+data_preparation:
+  surface_pressure: surface_pressure
+  variables:
+    mean_sea_level_pressure:
+      units: Pa
+      mask_below_surface: false
+    surface_pressure:
+      units: Pa
+      mask_below_surface: false
+    wind_u:
+      units: m/s
+      mask_below_surface: true
+    wind_v:
+      units: m/s
+      mask_below_surface: true
+    wind_omega:
+      units: Pa/s
+      mask_below_surface: true
+
+objects:
+  time_label:
+    enabled: true
+    text_prefix: 'Válido:'
+    text_suffix: UTC
+    font: DejaVu Sans
+    font_size: 32
+    position: {x: 0.0, y: 0.94}
+    font_colour: [255, 255, 255, 255]
+    background_colour: [0, 0, 0, 160]
+
+  surface_pressure:
+    enabled: true
+
+  mean_sea_level_pressure:
+    enabled: true
+    # Elevación gráfica sobre el océano: el campo sigue siendo presión al nivel del mar.
+    display_pressure_hpa: 950.0
+    colourmap_file: assets/colormaps/mean_sea_level_pressure.yaml
+    line_width: 1.5
+    line_colour: [0, 0, 0, 255]
+    # La leyenda muestra todas las bandas, incluido el intervalo sin relleno.
+    legend:
+      position: {x: -0.98, y: 0.72, width: 0.028, height: 0.024}
+      row_spacing: 0.034
+      label_spacing: 0.012
+      font: DejaVu Sans
+      font_size: 15
+
+  streamlines:
+    enabled: true
+    representation: particles_with_trails
+    pressure: {bottom_hpa: 1000.0, top_hpa: 500.0}
+    seed_pressure_levels_hpa: [925.0, 850.0, 700.0]
+    seed_spacing_degrees: 4.0
+    # Siembra en todo el dominio IFS disponible dentro de la escena de Sudamérica.
+    # El NetCDF llega a 56°S; la escena conserva su borde gráfico en 60°S.
+    seed_areas:
+      south_america: {west: -130.0, south: -56.0, east: -10.0, north: 30.0}
+    # Rastro pasado desde una malla de posiciones actuales, renovado en cada plazo.
+    # Al inicio se usa únicamente la historia disponible dentro de la corrida.
+    trail_hours: 6.0
+    substeps_per_data_timestep: 12
+    sphere_radius: 0.22
+    # Alternativa representation: streamlines para el viento fijo de cada plazo.
+    # El muestreo interno de la integración no modifica ni remuestrea la malla NetCDF.
+    # En 2.0.0b11, Met.3D aplica Δs como paso de integración con viento en m/s y Pa/s.
+    integration_step_seconds: 300.0
+    number_of_segments: 1200
+    integration_method: runge_kutta
+    interpolation_method: trilinear
+    tube_radius: 0.055
+    colour: "#164B9B"
+
+# Misma cámara fija utilizada para explorar el friaje.
+camera:
+  origin: {longitude: -64.7630386352539, latitude: -93.39141082763672, world_z: 62.55768585205078}
+  y_axis: {longitude: -0.056530460715293884, latitude: 0.6732198596000671, world_z: 0.7372750639915466}
+  z_axis: {longitude: -0.061693187803030014, latitude: 0.7346889972686768, world_z: -0.6755884885787964}
+#  origin: {longitude: -30.441743850708008, latitude: -115.15374755859375, world_z: 99.71694946289062}
+#  y_axis: {longitude: -0.2489262819290161, latitude: 0.6657854318618774, world_z: 0.7033936381340027}
+#  z_axis: {longitude: -0.24633359909057617, latitude: 0.6588489413261414, world_z: -0.710798442363739}
+
+timeline:
+  selection: first_hours
+  # +0 a +120 h: 41 tiempos cuando la salida nativa es cada tres horas.
+  max_forecast_hours: 120
+
+output:
+  width_px: 1920
+  height_px: 1080
+  frames_per_second: 6
+  video_codec: libx264
+  pixel_format: yuv420p
+
+camera:
+  origin: {longitude: -62.98917007446289, latitude: -102.8525390625, world_z: 74.2708740234375}
+  y_axis: {longitude: -0.10792288184165955, latitude: 0.6590539813041687, world_z: 0.7443094253540039}
+  z_axis: {longitude: -0.12028283625841141, latitude: 0.7345257997512817, world_z: -0.6678309440612793}
+

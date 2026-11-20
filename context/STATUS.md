@@ -1,6 +1,6 @@
 # Estado del proyecto
 
-**Última actualización:** 2026-11-06
+**Última actualización:** 2026-11-17
 
 ## Resumen
 
@@ -9,16 +9,18 @@ Términos de Referencia. El conversor `Grib2ToNetCDF` está implementado y
 verificado estructuralmente. Los flujos de visualización se validaron
 técnicamente en un único ambiente Conda Linux con Met.3D y ParaView. La
 composición de friaje con DVR multivariable de TPE y humedad relativa fue
-aceptada por el usuario el 2026-11-06. Continúan pendientes la validación
-meteorológica del evento, las otras composiciones y el soporte del calendario
-mixto de IFS para apertura/render en Met.3D.
+aceptada por el usuario el 2026-11-06. La composición de anticiclones con PNM
+por rangos y partículas de viento en todo el dominio disponible fue aprobada
+el 2026-11-17, con IFS del 2026-09-03 00 UTC como referencia. Continúan
+pendientes la validación meteorológica de los casos, otras composiciones y
+el recorrido completo de selecciones con calendario mixto de IFS.
 
 ## Estado frente al alcance contractual
 
 | Ítem | Estado | Situación actual |
 |---|---|---|
 | a) Preparación, transformación y estandarización | En cierre | Conversor, configuraciones, reportes y benchmarks implementados; falta validación científica documentada. |
-| b) Visualizaciones y animaciones | Implementado técnicamente | Composición de friaje TPE/RH aprobada visualmente; siguen pendientes la validación meteorológica, las otras composiciones y el calendario mixto de IFS en Met.3D. |
+| b) Visualizaciones y animaciones | Implementado técnicamente | Composiciones de friaje TPE/RH y anticiclones aprobadas visualmente; siguen pendientes la validación meteorológica, otros productos y el recorrido completo del calendario mixto de IFS. |
 | c) Plataforma web piloto | En espera | Depende de los productos que se generen y de las condiciones del servidor final. |
 | d) Integración, operación y documentación | En desarrollo | Existen flujos reproducibles para conversión y visualización; falta integrar y documentar la operación completa. |
 
@@ -69,8 +71,8 @@ mixto de IFS para apertura/render en Met.3D.
   `least_significant_digit=2` para humedad específica; la nueva configuración
   no recupera el detalle perdido en esos archivos.
 - Resolver o aceptar explícitamente las variables solicitadas que no estén
-  disponibles en una corrida, como las advertencias actuales de `prmslmsl` en
-  la selección ECMWF.
+  disponibles en nuevas corridas; anticiclones usa `presmsl`, comprobada en
+  la referencia IFS del 2026-09-03 00 UTC.
 
 ## Flujos vigentes de visualización
 
@@ -78,13 +80,13 @@ mixto de IFS para apertura/render en Met.3D.
   `config/met3d/animations/`, `src/visualize/met3d_animation.py`, el preparador
   de datos `src/visualize/met3D/netcdf.py` y los
   lanzadores `scripts/run_met3d_dana.py`, `scripts/run_met3d_jet.py` y
-  `scripts/run_met3d_friaje.py`. Los productos preparan configuraciones
-  temporales y guardan sus MP4 históricos en
+  `scripts/run_met3d_friaje.py` y `scripts/run_met3d_anticyclones.py`. Los
+  productos preparan configuraciones temporales y guardan sus MP4 históricos en
   `outputs/met3d/`.
 - Los lanzadores Met.3D exponen `--open` para revisar la escena en una estación
   gráfica y `--render` para el batch. Por defecto, ambas acciones reconstruyen
-  el runtime; friaje admite `--reuse-temporal` para validar y conservar su
-  NetCDF mientras renueva la escena. El batch usa Xvfb con su contexto OpenGL
+  el runtime; friaje y anticiclones admiten `--reuse-temporal` para validar y
+  conservar su NetCDF mientras renuevan la escena. El batch usa Xvfb con su contexto OpenGL
   virtual, mientras que la cámara se aplica desde el YAML directamente a la
   copia de sesión. Se eliminó el `camera.conf` que no era consumido por Met.3D
   y se unificó la sesión base de DANA y jet como `south_america_base`.
@@ -232,10 +234,10 @@ mixto de IFS para apertura/render en Met.3D.
   sin duplicados, exactamente iguales a `config/models/ifs.yaml`: F+0 a
   F+144 cada 3 h y F+150 a F+240 cada 6 h. El NetCDF contiene las variables
   del nuevo producto; la ausencia de `tcdcprs` ya no es un impedimento.
-  `build_timeline` sigue rechazando el cambio de paso entre 2026-06-26 00 y
-  06 UTC. Es una limitación del motor de animación, no un defecto del
-  calendario estandarizado; también afecta a `--open` y a selecciones
-  parciales porque se valida primero la coordenada completa.
+  El recorrido completo sigue limitado por el cambio de paso entre
+  2026-06-26 00 y 06 UTC. Desde la revisión del 2026-11-17, la regularidad
+  se comprueba sólo sobre la selección: `first_hours` hasta +120 o +144 h
+  permite abrir/renderizar el tramo regular sin modificar el calendario.
 - Se actualizaron `docs/met3d.md` y las decisiones D-010/D-014 para reflejar
   el producto aceptado y `--reuse-temporal`. El documento
   `docs/friaje-flujo-calculo-y-visualizacion.md` conserva la descripción
@@ -243,12 +245,29 @@ mixto de IFS para apertura/render en Met.3D.
   actualización queda pendiente. Para operar el producto vigente se utiliza
   la guía `docs/met3d.md`.
 
+- La composición de anticiclones fue aprobada el 2026-11-17 a partir del
+  fotograma IFS válido el 2026-09-05 12 UTC (+60 h). Combina PNM con 18
+  bandas, contornos negros en sus límites y opacidad 0.6 salvo [1002, 1020)
+  hPa, transparente. El viento usa partículas cada 4° en 925/850/700 hPa
+  en todo el dominio disponible: 130°O–10°O, 56°S–30°N. Los rastros se
+  reconstruyen hacia atrás hasta seis horas desde una malla fija de posiciones
+  actuales; al inicio se muestra sólo la historia disponible. El MP4 de
+  referencia selecciona +0 a +120 h de IFS del 2026-09-03 00 UTC, 41
+  fotogramas a 1920×1080 y 6 fps. La paleta reside en `assets/colormaps/`;
+  configuración, reproducción y verificaciones en `docs/met3d.md` y decisión
+  D-015. Los productos y evidencias se conservan en
+  `outputs/met3d/anticyclones/ecmwf-ifs/`. Esta aprobación corresponde al
+  diseño visual; sigue pendiente su validación meteorológica y con otros
+  modelos.
+
 ## Pendientes y siguiente actividad
 
-- Acordar y resolver el recorrido de tiempos nativos con intervalos mixtos de
-  IFS en Met.3D, conservando la grilla y sin interpolación temporal.
+- Acordar y resolver el recorrido completo de selecciones con intervalos
+  mixtos de IFS en Met.3D, conservando la grilla y los plazos nativos.
 - Conservar el video completo y su configuración, corrida, tiempos y
-  comprobaciones como evidencia reproducible de la composición aceptada.
+  comprobaciones de la composición de friaje aceptada. La evidencia de
+  anticiclones ya incluye el MP4 completo, la aprobación y las copias de
+  configuración y paleta.
 - Continuar la validación meteorológica del caso mediante TPE, RH, T2m y
   circulación; la aprobación visual no cierra esa evaluación ni todo el
   hito contractual b).

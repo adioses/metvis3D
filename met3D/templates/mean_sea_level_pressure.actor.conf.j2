@@ -1,0 +1,72 @@
+; Bandas discretas de PNM y contornos negros en sus límites. El plano sólo sitúa el campo.
+[FileFormat]
+met3dVersion=2.0.0b11/Oct26
+
+[MActor]
+actorName=Presión al nivel del mar - rangos y contornos negros
+header\NWPMultiVarActor\numVariables={{ mean_sea_level_pressure.bands | length + 1 }}
+{% for band in mean_sea_level_pressure.bands %}
+header\Variable_{{ loop.index0 }}\dataLoaderID={{ dataset_name }}
+header\Variable_{{ loop.index0 }}\ensembleUtilizedMembers=0
+header\Variable_{{ loop.index0 }}\groupDefinedByUUID=true
+header\Variable_{{ loop.index0 }}\levelType=0
+header\Variable_{{ loop.index0 }}\numContourSets=0
+header\Variable_{{ loop.index0 }}\uuid={{ band.uuid_variant }}
+header\Variable_{{ loop.index0 }}\variableName={{ variables.mean_sea_level_pressure }}
+properties\actor_variables\%7B{{ band.uuid }}%7D\SmoothFilter\smooth_mode=0
+properties\actor_variables\%7B{{ band.uuid }}%7D\VerticalRegrid\regrid_mode=no regrid
+properties\actor_variables\%7B{{ band.uuid }}%7D\data_source_id={{ dataset_name }}
+properties\actor_variables\%7B{{ band.uuid }}%7D\init_time_control_index=1
+properties\actor_variables\%7B{{ band.uuid }}%7D\valid_time_control_index=2
+properties\actor_variables\%7B{{ band.uuid }}%7D\selected_members=0
+properties\actor_variables\%7B{{ band.uuid }}%7D\var_display_name={{ variables.mean_sea_level_pressure }} (Single Level)
+properties\actor_variables\%7B{{ band.uuid }}%7D\var_name_level_type={{ variables.mean_sea_level_pressure }} (Single Level)
+properties\actor_variables\%7B{{ band.uuid }}%7D\render_mode=filled contours
+properties\actor_variables\%7B{{ band.uuid }}%7D\transfer_function={{ band.transfer_function }}
+properties\actor_variables\%7B{{ band.uuid }}%7D\use_transfer_function=true
+{% endfor %}
+header\Variable_{{ mean_sea_level_pressure.bands | length }}\dataLoaderID={{ dataset_name }}
+header\Variable_{{ mean_sea_level_pressure.bands | length }}\ensembleUtilizedMembers=0
+header\Variable_{{ mean_sea_level_pressure.bands | length }}\groupDefinedByUUID=true
+header\Variable_{{ mean_sea_level_pressure.bands | length }}\levelType=0
+header\Variable_{{ mean_sea_level_pressure.bands | length }}\numContourSets=1
+header\Variable_{{ mean_sea_level_pressure.bands | length }}\uuid=@Variant(\0\0\0\x7f\0\0\0\x6QUuid\0\0/\x5\xc4o\xb0MP\x96\a\xba\xdf\xfd\xd5\x85\x89)
+header\Variable_{{ mean_sea_level_pressure.bands | length }}\variableName={{ variables.mean_sea_level_pressure }}
+properties\actor_enabled=true
+properties\actor_variables\%7B002f05c4-6fb0-4d50-9607-badffdd58589%7D\SmoothFilter\smooth_mode=0
+properties\actor_variables\%7B002f05c4-6fb0-4d50-9607-badffdd58589%7D\VerticalRegrid\regrid_mode=no regrid
+properties\actor_variables\%7B002f05c4-6fb0-4d50-9607-badffdd58589%7D\contour%20set%20%231\enabled=true
+properties\actor_variables\%7B002f05c4-6fb0-4d50-9607-badffdd58589%7D\contour%20set%20%231\labels_enabled=false
+properties\actor_variables\%7B002f05c4-6fb0-4d50-9607-badffdd58589%7D\contour%20set%20%231\levels="{{ mean_sea_level_pressure.contour_levels_pa }}"
+properties\actor_variables\%7B002f05c4-6fb0-4d50-9607-badffdd58589%7D\contour%20set%20%231\thickness={{ mean_sea_level_pressure.line_width }}
+properties\actor_variables\%7B002f05c4-6fb0-4d50-9607-badffdd58589%7D\contour%20set%20%231\use_transfer_function=false
+properties\actor_variables\%7B002f05c4-6fb0-4d50-9607-badffdd58589%7D\contour%20set%20%231\colour={{ mean_sea_level_pressure.line_colour_variant }}
+properties\actor_variables\%7B002f05c4-6fb0-4d50-9607-badffdd58589%7D\data_source_id={{ dataset_name }}
+properties\actor_variables\%7B002f05c4-6fb0-4d50-9607-badffdd58589%7D\init_time_control_index=1
+properties\actor_variables\%7B002f05c4-6fb0-4d50-9607-badffdd58589%7D\valid_time_control_index=2
+properties\actor_variables\%7B002f05c4-6fb0-4d50-9607-badffdd58589%7D\selected_members=0
+properties\actor_variables\%7B002f05c4-6fb0-4d50-9607-badffdd58589%7D\var_display_name={{ variables.mean_sea_level_pressure }} (Single Level)
+properties\actor_variables\%7B002f05c4-6fb0-4d50-9607-badffdd58589%7D\var_name_level_type={{ variables.mean_sea_level_pressure }} (Single Level)
+properties\actor_variables\%7B002f05c4-6fb0-4d50-9607-badffdd58589%7D\render_mode=line contours
+properties\actor_variables\%7B002f05c4-6fb0-4d50-9607-badffdd58589%7D\transfer_function=
+properties\actor_variables\%7B002f05c4-6fb0-4d50-9607-badffdd58589%7D\use_transfer_function=false
+properties\Windbarbs\vector_glyphs_enabled=false
+properties\streambarbs\streambarbs_enabled=false
+properties\bounding_box=1
+properties\cast_shadows=false
+properties\receive_shadows=false
+properties\elevation={{ mean_sea_level_pressure.display_pressure_hpa }}
+properties\border_lines\enabled=false
+properties\coast_lines\enabled=false
+properties\graticule\enabled=false
+properties\label_properties\labels_enabled=false
+properties\wire_frame_enabled=false
+
+[Metadata]
+actorConfigType=Horizontal cross-section
+
+[components]
+Bounding%20box\bottomPressure_hPa={{ scene.view_pressure.bottom_hpa }}
+Bounding%20box\horizontal2DCoords={{ scene.area.horizontal2d_coords }}
+Bounding%20box\topPressure_hPa={{ scene.view_pressure.top_hpa }}
+Bounding%20box\useBoundingBox={{ scene.bounding_boxes.scene }}

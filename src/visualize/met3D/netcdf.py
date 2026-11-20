@@ -153,7 +153,7 @@ def prepare_visualization_data(
                             raise RuntimeError(f"{reuse_description}: {name} requiere missing_value igual a _FillValue para que Met.3D reconozca los datos ausentes. {instruction}")
             except OSError as error:
                 raise RuntimeError(f"{description}: no se pudo leer el NetCDF de visualización {netcdf_output}: {error}. {instruction}") from error
-            print(f"Datos de {description}: se reutiliza {netcdf_output} tras validar origen, variables, coordenadas, tiempos y máscaras.", flush=True)
+            print(f"Datos de {description}: se reutiliza {netcdf_output} tras comparar origen, variables, coordenadas, tiempos y receta de máscaras, sin recorrer los campos.", flush=True)
             return netcdf_output
 
         # Mantener coordenadas y niveles nativos; time crece como en el conversor.

@@ -14,6 +14,7 @@ fotogramas a la sesión, por lo que la sesión base no contiene rutas de usuario
 | DANA | `config/met3d/animations/south_america_dana.yaml` | Isosuperficie de PV baroclínica de -5 PVU entre 500 y 250 hPa y sección horizontal de PV, viento y altura geopotencial; `pressfc` proporciona topografía de presión. |
 | Jet | `config/met3d/animations/south_america_jet.yaml` | Isosuperficie de rapidez derivada de `ugrdprs` y `vgrdprs`, entre 500 y 100 hPa, con umbral inicial de 50 m s-1. |
 | Friaje | `config/met3d/animations/south_america_friaje.yaml` | DVR multivariable de TPE < 320 K y humedad relativa > 70 %, ambos entre 1000 y 700 hPa, con topografía de presión. |
+| Anticiclones | `config/met3d/animations/south_america_anticyclones.yaml` | PNM por rangos con contornos negros, partículas de viento y rastros pasados de seis horas en todo el dominio disponible. Composición aprobada el 2026-11-17. |
 
 Las animaciones usan exclusivamente la escena de Met.3D
 `config/met3d/scenes/south_america.yaml`. La escena define el dominio
@@ -393,6 +394,121 @@ quedaron excluidas correctamente. Esta limitación del contexto de terreno
 queda pendiente para archivos con huecos de presión superficial; la corrida
 utilizada para el video tiene `pressfc` completo.
 
+## Anticiclones
+
+La composición fue aprobada por el usuario el **2026-11-17** sobre la escena
+`south_america` con cámara fija. La corrida de referencia es
+`ecmwf-ifs_20260903_00Z.nc`; se seleccionan **+0 a +120 h**, ambos incluidos:
+41 tiempos nativos cada tres horas, a 1920×1080 y 6 fps. Esta aprobación fija
+la composición visual; la interpretación meteorológica y el uso con otras
+corridas o modelos requieren sus propias comprobaciones.
+
+Abrir la composición:
+
+```bash
+conda run -n metvis3d python scripts/run_met3d_anticyclones.py \
+  --netcdf data/standardized/ecmwf-ifs_20260903_00Z.nc \
+  --open
+```
+
+Generar el video completo:
+
+```bash
+conda run -n metvis3d python scripts/run_met3d_anticyclones.py \
+  --netcdf data/standardized/ecmwf-ifs_20260903_00Z.nc \
+  --render
+```
+
+Ambas acciones admiten `--reuse-temporal` cuando ya existe un
+`above_surface.nc` compatible. El origen debe contener `presmsl` y `pressfc`
+en Pa, `ugrdprs` y `vgrdprs` en m/s, y `vvelprs` en Pa/s. El preparador
+conserva los niveles nativos, aplica la máscara bajo superficie al viento y
+mantiene intacto el NetCDF estandarizado. El runtime se genera en
+`met3D/.runtime/ecmwf-ifs-anticyclones/`; los productos se conservan en
+`outputs/met3d/anticyclones/ecmwf-ifs/`.
+
+### Presión al nivel del mar
+
+`objects.mean_sea_level_pressure.colourmap_file` referencia
+`assets/colormaps/mean_sea_level_pressure.yaml`, fuente de los 18 rangos, HEX
+y opacidades. Los intervalos son `[Li, Ls)`, con extremos `<978` y
+`>=1041` hPa. La opacidad aprobada es 0.6 salvo en **[1002, 1020) hPa**, cuyo
+relleno es transparente. La leyenda identifica también ese intervalo.
+
+Los contornos negros se generan únicamente en los 17 límites de la paleta:
+978, 981, 984, 987, 990, 993, 996, 999, 1002, 1020, 1023, 1026, 1029,
+1032, 1035, 1038 y 1041 hPa. No hay contornos interiores en el intervalo
+transparente. Los datos y niveles de contorno se entregan a Met.3D en Pa;
+la leyenda expresa hPa. Cada banda utiliza una función de color constante y
+un límite superior float32 exclusivo, sin degradados entre rangos.
+
+El campo de PNM se coloca gráficamente en 950 hPa sobre la topografía de
+presión. Ese plano es una elevación de dibujo: el campo sigue representando
+presión al nivel del mar.
+
+### Partículas y rastros del viento
+
+La configuración aceptada está en `objects.streamlines`:
+
+| Parámetro | Valor vigente |
+|---|---|
+| `representation` | `particles_with_trails` |
+| `seed_areas.south_america` | 130°O–10°O, 56°S–30°N |
+| `seed_spacing_degrees` | 4° en longitud y latitud |
+| `seed_pressure_levels_hpa` | 925, 850 y 700 hPa |
+| Caja vertical de dibujo | 1000–500 hPa |
+| `trail_hours` | 6 h hacia el pasado |
+| `substeps_per_data_timestep` | 12: integración cada 15 min con datos cada 3 h |
+| `integration_method` / `interpolation_method` | `runge_kutta` / `trilinear` |
+| `sphere_radius` / `tube_radius` | 0.22 / 0.055, unidades gráficas nativas |
+| Color del viento | Presión en hPa, paleta `YlGnBu` |
+
+La siembra abarca todo el dominio disponible, sustituyendo las dos cajas
+oceánicas exploratorias. El límite de 56°S corresponde al NetCDF utilizado;
+la escena conserva su borde en 60°S. Con otro dominio se deben ajustar las
+cajas explícitamente: el proceso rechaza áreas fuera de los datos o la escena.
+La máscara elimina semillas o tramos situados bajo la superficie, por lo que
+algunos niveles no aparecen sobre los Andes.
+
+Las esferas marcan una **malla fija de posiciones actuales** en cada plazo.
+Met.3D integra hacia atrás desde ellas para reconstruir el recorrido pasado:
+en +0 se muestran esferas sin cola; en +3, tres horas de rastro; desde +6,
+seis horas. Cada plazo recalcula sus trayectorias; no se siguen las mismas
+parcelas durante los cinco días ni se detectan centros automáticamente.
+
+Se usa el modo nativo `Backward tubes and single time positions`. Para
+dibujar las esferas en +0, Met.3D necesita geometría con al menos cuatro
+vértices: se calcula también un intervalo futuro, que permanece oculto en
+ese modo. En el último plazo se usa sólo la geometría disponible. El rastro
+visible siempre corresponde al pasado. El muestreo espacial y temporal
+durante la integración no remuestrea el NetCDF.
+
+El rastro debe abarcar un número entero de intervalos nativos, los subpasos
+deben ser enteros entre 3 y 1000 y el radio de esfera debe superar al del
+tubo. La alternativa `representation: streamlines` conserva las líneas de
+corriente de viento fijo por plazo mediante `integration_step_seconds` y
+`number_of_segments`; no es la representación aprobada actual.
+
+### Evidencia y verificación manual
+
+El fotograma aprobado es `wind_full_domain_20260905_12Z.png`, válido en +60 h,
+acompañado de su YAML y log bajo el directorio de productos. El MP4 vigente
+es `anticyclones_ecmwf-ifs_20260903_00Z.mp4`; `preview_20260903_00Z.png`
+representa +60 h y `verification_20260903_00Z.yaml` registra la configuración,
+aprobación y verificaciones. Se conservan copias de la configuración y la
+paleta como `configuration_20260903_00Z.yaml` y
+`pressure_palette_20260903_00Z.yaml`. El fotograma +60 h del video regenerado
+coincide píxel por píxel con la referencia aprobada.
+
+Se comprueban los 41 nombres y tiempos de fotograma, las ventanas pasadas
+`máximo(+0, plazo −6 h)` y la duración del MP4 con FFprobe: 41 fotogramas,
+6 fps y 6.833333 s. Se inspeccionan +0, +3, +6, +60 y +120 h para verificar
+el inicio de las colas, la cobertura y su evolución. Las comprobaciones
+manuales de rangos incluyen el valor float32 anterior, exacto y posterior
+a cada uno de los 17 límites. Los casos de rastro no alineado con el paso
+nativo, subpasos fraccionarios y esfera menor que el tubo deben detenerse
+con un mensaje claro.
+
 ## Ajuste de cámara
 
 La cámara pertenece al YAML de cada animación, no a la sesión base. Sus nueve
@@ -447,19 +563,17 @@ El proceso lee los tiempos válidos del NetCDF. `timeline.selection` acepta
 limita la selección a partir del primer tiempo disponible. Antes de seleccionar
 el intervalo, se comprueba toda la coordenada temporal del archivo: debe tener
 al menos un tiempo, estar ordenada, no contener valores ausentes o duplicados
-y, cuando hay varios tiempos, conservar un intervalo regular de segundos
-enteros. Un archivo con intervalos irregulares se rechaza aunque la selección
-solicitada abarque sólo una parte regular.
+y conservar el orden cronológico. La regularidad de los intervalos y sus
+segundos enteros se comprueban sobre los tiempos seleccionados.
 
 Esta exigencia pertenece al motor actual de animación y a su configuración
 batch de paso temporal único; no es una condición del contrato del NetCDF
 estandarizado. El IFS del 2026-06-20 tiene 65 tiempos válidos, ordenados y sin
 duplicados: F+0 a F+144 cada 3 h y F+150 a F+240 cada 6 h, exactamente como
-declara `config/models/ifs.yaml`. `build_timeline` lo rechaza al pasar del
-2026-06-26 00 UTC al 2026-06-26 06 UTC. La corrida contiene las variables
-requeridas por el nuevo producto, pero su apertura/render completo sigue
-pendiente de admitir el calendario mixto sin interpolar datos. Limitar
-`first_hours` a 144 h no evita actualmente la validación del archivo completo.
+declara `config/models/ifs.yaml`. Una selección `first_hours` hasta +120 o
++144 h permite trabajar con su tramo regular. La selección completa sigue
+rechazándose cuando incluye el cambio de tres a seis horas; ese recorrido
+mixto queda pendiente de soporte en el batch, conservando los plazos nativos.
 
 Con cámara fija se genera un fotograma por tiempo seleccionado. Con trayectoria,
 se calculan fotogramas adicionales para mover la cámara mientras cada campo
@@ -471,5 +585,6 @@ siempre que cumpla el mínimo y las comprobaciones de tiempo.
 
 `output.frames_per_second` define la velocidad de reproducción del MP4 y,
 junto con la cantidad de fotogramas, determina su duración. Los nombres de
-los PNG temporales incluyen el tiempo válido, pero el video no incorpora
-actualmente una etiqueta visible con fecha y hora.
+los PNG temporales incluyen el tiempo válido. Los productos con
+`objects.time_label` habilitado, como anticiclones, incorporan también una
+etiqueta visible con modelo, fecha y hora UTC en el video.

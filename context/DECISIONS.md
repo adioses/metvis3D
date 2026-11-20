@@ -97,10 +97,11 @@ campos, niveles ni grilla.
 
 ## D-010 — Flujo actual de animaciones con Met.3D
 
-**Fecha:** 2026-10-19, actualizada 2026-11-06
+**Fecha:** 2026-10-19, actualizada 2026-11-17
 **Decisión:** Met.3D opera de forma independiente bajo `config/met3d/`, con
-escenas, animaciones, sesiones y runtime propios. DANA, jet y friaje usan el motor
-común `src/visualize/met3d_animation.py`; sus lanzadores reciben un NetCDF
+escenas, animaciones, sesiones y runtime propios. DANA, jet, friaje y
+anticiclones usan el motor común `src/visualize/met3d_animation.py`; sus
+lanzadores reciben un NetCDF
 estandarizado y materializan configuraciones temporales por corrida.
 
 **Impacto:** el runtime se limita a `met3D/.runtime/`; los MP4 históricos se
@@ -112,7 +113,8 @@ de cada animación, sin intervenir en ParaView.
 Los productos que declaran `data_preparation` utilizan el preparador genérico
 `src/visualize/met3D/netcdf.py` para escribir sus campos y máscaras en un
 NetCDF temporal. La creación sigue siendo el comportamiento predeterminado.
-El lanzador de friaje admite `--reuse-temporal` para pruebas: valida el origen,
+Los lanzadores de friaje y anticiclones admiten `--reuse-temporal`: validan
+el origen,
 variables, unidades, dimensiones, coordenadas, tiempos, máscaras y registro de
 finalización antes de conservar `above_surface.nc` y renovar la escena. Si el
 archivo falta o es incompatible, se detiene sin regenerarlo ni limpiar la
@@ -125,13 +127,12 @@ escena. Con trayectoria, el número de fotogramas se calcula a partir de los
 tiempos disponibles y los mínimos configurados, y un mismo tiempo puede ocupar
 varios fotogramas. Un único tiempo válido permite recorrer la trayectoria con
 el campo fijo. Sin trayectoria se genera un fotograma por tiempo seleccionado.
-El motor actual exige que la coordenada temporal completa esté ordenada y, si
-contiene varios tiempos, tenga intervalos regulares; se detiene ante tiempos
-ausentes, duplicados, desordenados o cambios de intervalo. Esta última
-restricción es una limitación de la implementación de animación, no del
-contrato de estandarización. El calendario nativo mixto de IFS descrito en
-D-013 es válido; su soporte en apertura/render queda pendiente, sin interpolar
-datos ni alterar los plazos del modelo.
+El motor exige que la coordenada temporal completa esté ordenada y libre de
+tiempos ausentes o duplicados. La regularidad se comprueba sobre la selección:
+IFS admite `first_hours` hasta +120 o +144 h aunque el archivo cambie de paso
+después. Recorrer en un mismo batch una selección que incluya intervalos
+distintos sigue pendiente. El calendario nativo mixto de IFS de D-013 es
+válido y no se modifica ni se remuestrea para evitar esa limitación.
 
 ## D-011 — Flujo actual de animaciones con ParaView
 
@@ -213,6 +214,41 @@ el NetCDF estandarizado sin alterarlo, interpolar campos ni completar valores.
 
 La variante anterior de isosuperficie de TPE y cobertura nubosa queda como
 antecedente, con sus verificaciones históricas en `docs/met3d.md`. El IFS de
-junio dispone de las variables del producto actual, pero su calendario mixto
-continúa limitado por D-010. La composición aceptada no implica que el render
-de todas las corridas y modelos haya sido validado.
+junio dispone de las variables del producto actual; D-010 permite seleccionar
+su tramo regular y mantiene pendiente el recorrido completo mixto. La
+composición aceptada no implica que el render de todas las corridas y modelos
+haya sido validado.
+
+## D-015 — Composición de anticiclones con PNM y viento en todo el dominio
+
+**Fecha:** 2026-11-17
+**Decisión:** el usuario aprueba la composición de anticiclones en la escena
+`south_america`, con cámara fija, PNM por rangos y partículas de viento con
+rastros de seis horas en todo el dominio disponible. La referencia es IFS del
+2026-09-03 00 UTC, seleccionando +0 a +120 h: 41 tiempos cada tres horas.
+Se adopta `config/met3d/animations/south_america_anticyclones.yaml` y el
+lanzador `scripts/run_met3d_anticyclones.py` como flujo vigente.
+
+La siembra usa 130°O–10°O y 56°S–30°N, separación de 4° y niveles
+925/850/700 hPa; sustituye las dos cajas oceánicas exploratorias. El viento
+se integra con Runge-Kutta y muestreo trilineal dentro de 1000–500 hPa, con
+12 subpasos por intervalo nativo, radio de esfera 0.22 y de rastro 0.055.
+Las posiciones actuales forman una malla fija y los recorridos se reconstruyen
+hacia atrás en cada plazo. En +0 no hay cola; en +3 hay tres horas de cola y
+desde +6 se muestran seis horas. Esta representación no sigue las mismas
+parcelas durante toda la corrida.
+
+La paleta `assets/colormaps/mean_sea_level_pressure.yaml` define 18 bandas
+de PNM en hPa: opacidad 0.6, salvo [1002, 1020), transparente. Los contornos
+negros corresponden únicamente a sus 17 límites y reemplazan las isobaras de
+intervalo uniforme. El campo se dibuja en 950 hPa como elevación gráfica;
+los datos conservan su significado de presión al nivel del mar.
+
+**Impacto:** la cobertura del viento queda limitada por el NetCDF y la
+máscara bajo superficie, incluida la orografía andina. El caso IFS llega a
+56°S aunque la escena se extiende a 60°S. Se requieren `presmsl`, `pressfc`,
+`ugrdprs`, `vgrdprs` y `vvelprs`; se conserva un único temporal de visualización
+sin alterar la grilla, los niveles ni el NetCDF estandarizado. La aprobación
+fija el diseño visual y no confirma detección automática de centros,
+validación meteorológica del fenómeno ni compatibilidad probada con otros
+modelos. Uso y comprobaciones en `docs/met3d.md`, sección Anticiclones.

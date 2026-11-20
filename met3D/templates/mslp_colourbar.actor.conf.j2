@@ -1,0 +1,36 @@
+; Una banda constante conserva HEX y alfa sin mezclar colores en sus límites.
+[FileFormat]
+met3dVersion=2.0.0b11/Oct26
+
+[MActor]
+actorName={{ band.transfer_function }}
+properties\actor_enabled=true
+properties\colourmap_type=1
+properties\clamp_hcl_colours=true
+properties\min_value={{ band.minimum_pa }}
+properties\max_value={{ band.maximum_pa }}
+properties\extend_below_min={{ band.extend_below | string | lower }}
+properties\extend_above_max={{ band.extend_above | string | lower }}
+properties\steps=2
+properties\opacity_enabled=true
+properties\label_properties\labels_enabled=false
+properties\label_properties\number_of_tick_labels=0
+properties\label_properties\number_of_tick_marks=2
+properties\label_properties\tick_mark_length=0
+properties\viewport_position_and_size={{ band.legend_rectangle }}
+
+[Metadata]
+actorConfigType=Transfer function scalar to colour (colour map)
+
+[TransferFunction1D]
+colourNode\size=2
+colourNode\1\position=0
+colourNode\1\colour={{ band.colour_xyz }}
+colourNode\2\position=1
+colourNode\2\colour={{ band.colour_xyz }}
+alphaNode\size=2
+alphaNode\1\position=0
+alphaNode\1\alpha={{ band.opacity }}
+alphaNode\2\position=1
+alphaNode\2\alpha={{ band.opacity }}
+colourSpaceForColourNodeInterpolation=rgb

@@ -3,7 +3,7 @@ model:
   center: ecmwf
 
 source:
-  directory_template: data/raw/ECMWF27/{date}{cycle_hour}
+  directory_template: data/raw/ECMWF/{date}{cycle_hour}
   file_template: "{date}{cycle_hour}0000-{forecast_hour:03d}h-oper-fc.grib2"
   forecast_schedule:
     - first_hour: 0
@@ -11,7 +11,7 @@ source:
       step_hours: 3
     - first_hour: 150
       last_hour: 240
-      step_hours: 6
+      step_hours: 3
 
 standardization:
   longitude_range: "-180_180"
@@ -31,4 +31,5 @@ selected_variables:
   - ugrd10m
   - vgrd10m
   - pressfc
+  - presmsl
   - apcpsfc

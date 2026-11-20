@@ -68,7 +68,6 @@ objects:
         title: 'T2m [°C]'
         font: DejaVu Sans
         font_size: 20
-        font_colour: [0, 0, 100, 255]
         label_spacing: 0.015
         title_spacing: 0.07
 

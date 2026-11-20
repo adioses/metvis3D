@@ -6,6 +6,14 @@
 tridimensionales. No define todavía una selección por modelo ni modifica el
 contrato de datos.
 
+**Actualización de producto, 2026-11-17:** se aprobó la composición de
+anticiclones con PNM por rangos y partículas de viento con rastros de seis
+horas en todo el dominio disponible de Sudamérica. La referencia comprobada
+es IFS del 2026-09-03 00 UTC. La configuración vigente, sus límites y su
+reproducción se describen en [la guía Met.3D](met3d.md#anticiclones);
+la investigación y los demás productos propuestos en esta revisión mantienen
+su alcance original.
+
 ## 1. Propósito y límites de esta revisión
 
 El punto 6.a del TDR requiere revisar documentación técnica para definir las

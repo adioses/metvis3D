@@ -1,0 +1,22 @@
+; Leyenda por rangos, independiente de la escala de presión usada por el flujo 3D.
+[FileFormat]
+met3dVersion=2.0.0b11/Oct26
+
+[MActor]
+actorName=PNM - leyenda de rangos [hPa]
+header\TextActor\num_texts={{ mean_sea_level_pressure.legend.labels | length }}
+{% for label in mean_sea_level_pressure.legend.labels %}
+properties\Text%20{{ loop.index }}\text="{{ label.text }}"
+properties\Text%20{{ loop.index }}\Font={{ mean_sea_level_pressure.legend.font }}
+properties\Text%20{{ loop.index }}\font_size={{ mean_sea_level_pressure.legend.font_size }}
+properties\Text%20{{ loop.index }}\font_colour={{ scene.appearance.text_colour_variant }}
+properties\Text%20{{ loop.index }}\bbox_enabled=false
+properties\Text%20{{ loop.index }}\coordinate_space=0
+properties\Text%20{{ loop.index }}\anchor={{ label.anchor }}
+properties\Text%20{{ loop.index }}\position={{ label.position }}
+properties\Text%20{{ loop.index }}\enabled=true
+{% endfor %}
+properties\actor_enabled=true
+
+[Metadata]
+actorConfigType=Text

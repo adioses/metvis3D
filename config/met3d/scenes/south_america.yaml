@@ -3,6 +3,13 @@
 name: south_america
 title: South America
 
+# Apariencia compartida por los productos de esta escena.
+appearance:
+  background_colour: "#2C3539"
+  text_colour: "#F2F2F2"
+  frame_colour: "#BFC7CA"
+  label_background_colour: [44, 53, 57, 210]
+
 area:
   west: -130.0
   south: -60.0
@@ -15,5 +22,6 @@ view_pressure:
   top_hpa: 100.0
 
 basemap:
+  line_colour: "#555753"
   graticule_spacing_degrees: 10
   label_spacing_degrees: 20

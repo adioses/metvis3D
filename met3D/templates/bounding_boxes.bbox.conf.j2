@@ -12,7 +12,7 @@ boundingBox\1\horizontal2DCoords={{ scene.area.horizontal2d_coords }}
 boundingBox\{{ bounding_box.index }}\name={{ bounding_box.name }}
 boundingBox\{{ bounding_box.index }}\topPressure_hPa={{ bounding_box.pressure.top_hpa }}
 boundingBox\{{ bounding_box.index }}\bottomPressure_hPa={{ bounding_box.pressure.bottom_hpa }}
-boundingBox\{{ bounding_box.index }}\horizontal2DCoords={{ scene.area.horizontal2d_coords }}
+boundingBox\{{ bounding_box.index }}\horizontal2DCoords={{ bounding_box.horizontal2d_coords | default(scene.area.horizontal2d_coords) }}
 
 {% endfor %}
 boundingBox\size={{ object_bounding_boxes | length + 1 }}

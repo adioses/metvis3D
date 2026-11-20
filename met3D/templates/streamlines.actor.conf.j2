@@ -1,0 +1,87 @@
+; Circulación tridimensional nativa, renovada en cada plazo.
+[FileFormat]
+met3dVersion=2.0.0b11/Oct26
+
+[MActor]
+actorName=Circulación 3D - {{ scene.title }}
+header\NWPMultiVarActor\numVariables=3
+header\TrajectoryActor\computationPointFilterSize=0
+header\TrajectoryActor\computationPointSourceSize={{ streamlines.seed_boxes | length }}
+{% for seed_box in streamlines.seed_boxes %}
+header\TrajectoryActor\computationPointSource{{ loop.index0 }}Name={{ seed_box.name }}
+header\TrajectoryActor\computationPointSource{{ loop.index0 }}Type=Bounding box
+{% endfor %}
+header\TrajectoryActor\dataSourceID=
+header\TrajectoryActor\sourceType=1
+header\TrajectoryActor\trajectoryFilterChainSize=0
+{% set wind_fields = [
+    (variables.wind_u, 'ebc5d6dd-a963-48f8-9850-0c3365c41217', '@Variant(\\0\\0\\0\\x7f\\0\\0\\0\\x6QUuid\\0\\xeb\\xc5\\xd6\\xdd\\xa9\\x63H\\xf8\\x98P\\f3e\\xc4\\x12\\x17)'),
+    (variables.wind_v, 'aa708980-ce7d-47ab-9f45-b4d80ac8f342', '@Variant(\\0\\0\\0\\x7f\\0\\0\\0\\x6QUuid\\0\\xaap\\x89\\x80\\xce}G\\xab\\x9f\\x45\\xb4\\xd8\\n\\xc8\\xf3\\x42)'),
+    (variables.wind_omega, 'c0f0eeca-103c-4fe9-8e32-9c2dd8ebbbb0', '@Variant(\\0\\0\\0\\x7f\\0\\0\\0\\x6QUuid\\0\\xc0\\xf0\\xee\\xca\\x10<O\\xe9\\x8e\\x32\\x9c-\\xd8\\xeb\\xbb\\xb0)')
+] %}
+{% for name, uuid, variant in wind_fields %}
+header\Variable_{{ loop.index0 }}\dataLoaderID={{ dataset_name }}
+header\Variable_{{ loop.index0 }}\ensembleUtilizedMembers=0
+header\Variable_{{ loop.index0 }}\groupDefinedByUUID=true
+header\Variable_{{ loop.index0 }}\levelType=1
+header\Variable_{{ loop.index0 }}\uuid={{ variant }}
+header\Variable_{{ loop.index0 }}\variableName={{ name }}
+properties\actor_variables\%7B{{ uuid }}%7D\SmoothFilter\smooth_mode=0
+properties\actor_variables\%7B{{ uuid }}%7D\VerticalRegrid\regrid_mode=no regrid
+properties\actor_variables\%7B{{ uuid }}%7D\data_source_id={{ dataset_name }}
+properties\actor_variables\%7B{{ uuid }}%7D\init_time_control_index=1
+properties\actor_variables\%7B{{ uuid }}%7D\valid_time_control_index=2
+properties\actor_variables\%7B{{ uuid }}%7D\selected_members=0
+properties\actor_variables\%7B{{ uuid }}%7D\var_display_name={{ name }} (Pressure Levels)
+properties\actor_variables\%7B{{ uuid }}%7D\var_name_level_type={{ name }} (Pressure Levels)
+{% endfor %}
+properties\actor_enabled=true
+properties\bounding_box={{ streamlines.bounding_box_index }}
+properties\cast_shadows=false
+properties\receive_shadows=false
+; El modo Constant de Met.3D colorea esferas y tubos sin función de transferencia.
+properties\color_mode=0
+properties\colour={{ streamlines.colour_variant }}
+{% for seed_box in streamlines.seed_boxes %}
+properties\computationPointSource{{ loop.index0 }}\enabled=true
+properties\computationPointSource{{ loop.index0 }}\bbox_seed_point_spacing={{ streamlines.spacing_variant }}
+{% endfor %}
+properties\computation_source=1
+properties\eastward_component_ms={{ wind_fields[0][2] }}
+properties\northward_component_ms={{ wind_fields[1][2] }}
+properties\vertical_component_pas={{ wind_fields[2][2] }}
+properties\ensemble_control=0
+properties\ensemble_member=0
+properties\init_time_control_index=1
+properties\trajectory_start_time_control_index=2
+properties\particle_positions_control_index=2
+properties\integrate_both_init_and_valid_time=false
+properties\integration_method={{ streamlines.integration_method_index }}
+properties\interpolation_method={{ streamlines.interpolation_method_index }}
+{% if streamlines.representation == 'particles_with_trails' %}
+; Las semillas corresponden a posiciones actuales y la integración recorre el pasado.
+properties\line_type=0
+properties\render_mode=4
+properties\backward_integration_time=-{{ streamlines.trail_hours }}
+; El tramo futuro permite dibujar esferas en +0; render_mode=4 sólo muestra el pasado.
+properties\forward_integration_time={{ streamlines.geometry_forward_hours }}
+properties\substeps_per_data_timestep={{ streamlines.substeps_per_data_timestep | int }}
+properties\generate_vertices_for_each_integration_step=true
+properties\sphere_radius={{ streamlines.sphere_radius }}
+{% else %}
+properties\line_type=1
+properties\render_mode=0
+properties\segment_length_delta_s={{ streamlines.integration_step_seconds }}
+properties\streamline_length={{ streamlines.number_of_segments }}
+{% endif %}
+properties\tube_radius={{ streamlines.tube_radius }}
+properties\wire_frame_enabled=false
+
+[Metadata]
+actorConfigType=Trajectories
+
+[components]
+Bounding%20box\bottomPressure_hPa={{ streamlines.pressure.bottom_hpa }}
+Bounding%20box\horizontal2DCoords={{ scene.area.horizontal2d_coords }}
+Bounding%20box\topPressure_hPa={{ streamlines.pressure.top_hpa }}
+Bounding%20box\useBoundingBox={{ scene.bounding_boxes.streamlines }}

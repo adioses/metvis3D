@@ -1,0 +1,23 @@
+# Presión al nivel del mar: límites inferiores incluidos y superiores excluidos.
+name: mean_sea_level_pressure
+units: hPa
+intervals: left_closed_right_open
+bands:
+  - {lower: null, upper: 978, hex: '#1464D2', opacity: 0.6}
+  - {lower: 978, upper: 981, hex: '#1E6EEB', opacity: 0.6}
+  - {lower: 981, upper: 984, hex: '#2882F0', opacity: 0.6}
+  - {lower: 984, upper: 987, hex: '#3C96F5', opacity: 0.6}
+  - {lower: 987, upper: 990, hex: '#50A5F5', opacity: 0.6}
+  - {lower: 990, upper: 993, hex: '#78B9FA', opacity: 0.6}
+  - {lower: 993, upper: 996, hex: '#96D2FA', opacity: 0.6}
+  - {lower: 996, upper: 999, hex: '#B4F0FA', opacity: 0.6}
+  - {lower: 999, upper: 1002, hex: '#E1FFFF', opacity: 0.6}
+  - {lower: 1002, upper: 1020, hex: '#FFFFFF', opacity: 0}
+  - {lower: 1020, upper: 1023, hex: '#FFFAAA', opacity: 0.6}
+  - {lower: 1023, upper: 1026, hex: '#FFE878', opacity: 0.6}
+  - {lower: 1026, upper: 1029, hex: '#FFC073', opacity: 0.6}
+  - {lower: 1029, upper: 1032, hex: '#FFA000', opacity: 0.6}
+  - {lower: 1032, upper: 1035, hex: '#FF6000', opacity: 0.6}
+  - {lower: 1035, upper: 1038, hex: '#FF4600', opacity: 0.6}
+  - {lower: 1038, upper: 1041, hex: '#FF3200', opacity: 0.6}
+  - {lower: 1041, upper: null, hex: '#FF1E00', opacity: 0.6}

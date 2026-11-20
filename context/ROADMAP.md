@@ -50,6 +50,13 @@ Actividades a definir y ejecutar:
 Resultado esperado: plantillas y animaciones configurables que puedan ajustarse
 en Jupyter y reproducirse mediante el flujo de producción.
 
+Avance confirmado al 2026-11-17: composición de anticiclones aprobada por el
+usuario con PNM por rangos y partículas con rastros de seis horas en todo el
+dominio disponible de Sudamérica, usando IFS como referencia. El registro de
+la decisión es D-015 y la ejecución está en `docs/met3d.md`. Esta aprobación
+visual aporta al hito B; su cierre conserva pendiente la validación
+meteorológica y los demás productos acordados.
+
 ## C. Plataforma web piloto
 
 Objetivo: desarrollar una plataforma web piloto para organizar, consultar,
