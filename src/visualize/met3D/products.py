@@ -13,7 +13,7 @@ import numpy as np
 from netCDF4 import Dataset, num2date
 
 from visualize.met3D.configuration import load_yaml_configuration, require_value
-from visualize.met3D.colormaps import prepare_pressure_colour_bands
+from visualize.met3D.colormaps import prepare_pressure_colour_bands, encode_met3d_rgb_colour
 from visualize.met3D.native import (
     encode_qrectf_variant, encode_text_position_variant, encode_text_colour_variant,
     encode_uuid_variant,
@@ -134,6 +134,16 @@ def prepare_product_objects(project_root: Path, animation: dict, scene: dict, re
 
     surface_pressure = get_enabled_object(objects, "surface_pressure", product_name)
     surface_temperature = get_enabled_object(surface_pressure, "temperature", product_name) if surface_pressure is not None else None
+    surface_precipitation = get_enabled_object(surface_pressure, "precipitation", product_name) if surface_pressure is not None else None
+    geographic_lines = get_enabled_object(surface_pressure, "geographic_lines", product_name) if surface_pressure is not None else None
+    if geographic_lines is not None:
+        colour = require_value(geographic_lines, ("colour",), f"de líneas geográficas de {product_name}")
+        if not isinstance(colour, str) or re.fullmatch(r"#[0-9A-Fa-f]{6}", colour) is None:
+            raise RuntimeError(f"Las líneas geográficas de {product_name} requieren colour como HEX #RRGGBB.")
+        rgb = [int(colour[index:index + 2], 16) for index in (1, 3, 5)]
+        geographic_lines["colour_variant"] = encode_text_colour_variant([*rgb, 255], f"Líneas geográficas de {product_name}")
+    if surface_temperature is not None and surface_precipitation is not None:
+        raise RuntimeError(f"El relieve de {product_name} debe colorearse con temperatura o precipitación; seleccione sólo un campo.")
     potential_vorticity = get_enabled_object(objects, "potential_vorticity", product_name)
     horizontal_section = get_enabled_object(objects, "horizontal_section", product_name)
     jet = get_enabled_object(objects, "jet", product_name)
@@ -144,7 +154,7 @@ def prepare_product_objects(project_root: Path, animation: dict, scene: dict, re
     streamlines = get_enabled_object(objects, "streamlines", product_name)
     time_label = get_enabled_object(objects, "time_label", product_name)
     pv_render_mode = None
-    if potential_vorticity is None and jet is None and cold_air is None and relative_humidity is None and streamlines is None:
+    if potential_vorticity is None and jet is None and cold_air is None and relative_humidity is None and streamlines is None and cloud_cover is None:
         raise RuntimeError(f"La animación {product_name} debe habilitar al menos un objeto tridimensional.")
 
     required_variables: list[str] = []
@@ -257,6 +267,37 @@ def prepare_product_objects(project_root: Path, animation: dict, scene: dict, re
             "text": colourbar["title"], "anchor": 5,
             "position": encode_text_position_variant(x + width / 2, y + float(colourbar["title_spacing"])),
         })
+    if surface_precipitation is not None:
+        required_variables.append(str(require_value(variables, ("precipitation",), f"de animación {product_name}")))
+        description = f"de precipitación sobre el relieve de {product_name}"
+        for key in ("accumulation", "minimum_mm", "maximum_mm", "transparent_zero", "opacity", "colourmap", "reverse_colourmap", "colour_steps", "colourbar_position"):
+            require_value(surface_precipitation, (key,), description)
+        if surface_precipitation["accumulation"] != "since_forecast_initialization":
+            raise RuntimeError(f"La precipitación de {product_name} sólo admite acumulados originales desde el inicio de la corrida.")
+        minimum = float(surface_precipitation["minimum_mm"])
+        maximum = float(surface_precipitation["maximum_mm"])
+        if not (math.isfinite(minimum) and math.isfinite(maximum) and 0 <= minimum < maximum):
+            raise RuntimeError(f"La precipitación de {product_name} requiere 0 <= minimum_mm < maximum_mm, finitos.")
+        if type(surface_precipitation["transparent_zero"]) is not bool:
+            raise RuntimeError(f"transparent_zero de {product_name} debe ser un booleano.")
+        if surface_precipitation["transparent_zero"] and minimum != 0:
+            raise RuntimeError(f"transparent_zero de {product_name} requiere minimum_mm: 0 para conservar toda lluvia positiva.")
+        opacity = surface_precipitation["opacity"]
+        if type(opacity) not in (int, float) or not math.isfinite(opacity) or not 0 <= opacity <= 1:
+            raise RuntimeError(f"La opacidad de precipitación de {product_name} debe ser un número finito entre 0 y 1.")
+        surface_precipitation["minimum_plot_mm"] = minimum
+        if type(surface_precipitation["colour_steps"]) is not int or surface_precipitation["colour_steps"] < 2:
+            raise RuntimeError(f"La precipitación de {product_name} requiere al menos dos pasos de color.")
+        position = surface_precipitation["colourbar_position"]
+        x, y, width, height = (float(require_value(position, (key,), description)) for key in ("x", "y", "width", "height"))
+        if not (-1 <= x < x + width <= 1 and -1 <= y - height < y <= 1):
+            raise RuntimeError(f"La leyenda de precipitación de {product_name} requiere un rectángulo positivo dentro de la pantalla.")
+        surface_precipitation["colourbar_rectangle"] = encode_qrectf_variant(x, y, width, height)
+        note = require_value(surface_precipitation, ("note",), description)
+        note_x, note_y = (float(require_value(note, ("position", key), description)) for key in ("x", "y"))
+        if not (-1 <= note_x <= 1 and -1 <= note_y <= 1) or not require_value(note, ("font",), description) or float(require_value(note, ("font_size",), description)) <= 0:
+            raise RuntimeError(f"La nota de precipitación de {product_name} requiere posición dentro de pantalla, fuente y tamaño positivo.")
+        surface_precipitation["note_position"] = encode_text_position_variant(note_x, note_y)
     if relative_humidity is not None:
         if surface_pressure is None:
             raise RuntimeError(f"La humedad relativa de {product_name} requiere presión superficial para excluir niveles bajo tierra.")
@@ -301,15 +342,29 @@ def prepare_product_objects(project_root: Path, animation: dict, scene: dict, re
         if int(cold_air["colour_steps"]) < 2 or float(cold_air["ray_step_size"]) <= 0:
             raise RuntimeError(f"El DVR de {product_name} requiere al menos dos pasos de color y ray_step_size positivo.")
     if cloud_cover is not None:
-        if cold_air is None:
-            raise RuntimeError(f"La nubosidad de {product_name} requiere el objeto de masa fría.")
+        if surface_pressure is None:
+            raise RuntimeError(f"La nubosidad de {product_name} requiere presión superficial para excluir niveles bajo tierra.")
         required_variables.append(str(require_value(variables, ("cloud_cover",), f"de animación {product_name}")))
-        for key in ("minimum_percent", "maximum_percent", "maximum_opacity", "colour_steps", "luminance", "ray_step_size"):
+        for key in ("minimum_percent", "maximum_percent", "maximum_opacity", "colour_steps", "luminance", "ray_step_size", "colourbar_position"):
             require_value(cloud_cover, (key,), f"de nubosidad de {product_name}")
         if not 0 <= float(cloud_cover["minimum_percent"]) < float(cloud_cover["maximum_percent"]) <= 100:
             raise RuntimeError(f"La nubosidad de {product_name} requiere 0 <= minimum_percent < maximum_percent <= 100.")
         if not 0 <= float(cloud_cover["maximum_opacity"]) <= 1:
             raise RuntimeError(f"La opacidad de nubosidad de {product_name} debe estar entre 0 y 1.")
+        if int(cloud_cover["colour_steps"]) < 2 or float(cloud_cover["ray_step_size"]) <= 0:
+            raise RuntimeError(f"El volumen nuboso de {product_name} requiere al menos dos pasos de color y ray_step_size positivo.")
+        if not 0 <= float(cloud_cover["luminance"]) <= 100:
+            raise RuntimeError(f"La luminosidad nubosa de {product_name} debe estar entre 0 y 100.")
+        position = cloud_cover["colourbar_position"]
+        x, y, width, height = (float(require_value(position, (key,), f"de leyenda nubosa de {product_name}")) for key in ("x", "y", "width", "height"))
+        if not (-1 <= x < x + width <= 1 and -1 <= y - height < y <= 1):
+            raise RuntimeError(f"La leyenda nubosa de {product_name} requiere un rectángulo positivo dentro de la pantalla.")
+        cloud_cover["colourbar_rectangle"] = encode_qrectf_variant(x, y, width, height)
+        # Gris sRGB equivalente a la luminosidad CIELAB; el alfa se declara por nodos.
+        luminance = float(cloud_cover["luminance"])
+        linear_grey = luminance / 903.3 if luminance <= 8 else ((luminance + 16) / 116) ** 3
+        grey = 12.92 * linear_grey if linear_grey <= 0.0031308 else 1.055 * linear_grey ** (1 / 2.4) - 0.055
+        cloud_cover["colour_xyz"] = encode_met3d_rgb_colour([round(grey * 255)] * 3)
     if potential_vorticity is not None:
         for variable_name in ("air_temperature", "wind_u", "wind_v"):
             required_variables.append(str(require_value(variables, (variable_name,), f"de animación {product_name}")))
@@ -398,7 +453,7 @@ def prepare_product_objects(project_root: Path, animation: dict, scene: dict, re
     data_preparation = animation.get("data_preparation")
     if reuse_netcdf and data_preparation is None:
         raise RuntimeError(f"La animación {product_name} no genera un NetCDF de visualización para --reuse-temporal.")
-    if (cold_air is not None or relative_humidity is not None or streamlines is not None) and data_preparation is None:
+    if (cold_air is not None or relative_humidity is not None or streamlines is not None or cloud_cover is not None or surface_precipitation is not None) and data_preparation is None:
         raise RuntimeError(f"La animación {product_name} requiere data_preparation para excluir niveles bajo tierra.")
     preparation_variables = {}
     surface_pressure_name = None
@@ -420,6 +475,10 @@ def prepare_product_objects(project_root: Path, animation: dict, scene: dict, re
         for role in ("wind_u", "wind_v", "wind_omega"):
             if preparation_variables[variables[role]].get("mask_below_surface") is not True or surface_pressure_name is None:
                 raise RuntimeError(f"La circulación 3D de {product_name} requiere enmascarar {variables[role]} bajo superficie y declarar presión superficial.")
+    if cloud_cover is not None:
+        cloud_name = variables["cloud_cover"]
+        if preparation_variables[cloud_name].get("mask_below_surface") is not True or surface_pressure_name is None:
+            raise RuntimeError(f"La nubosidad {cloud_name} de {product_name} requiere mask_below_surface: true y presión superficial en data_preparation.")
     if relative_humidity is not None:
         humidity_name = variables["relative_humidity"]
         if preparation_variables[humidity_name].get("mask_below_surface") is not True or surface_pressure_name is None:
@@ -435,6 +494,8 @@ def prepare_product_objects(project_root: Path, animation: dict, scene: dict, re
         "objects": {
             "surface_pressure": surface_pressure,
             "surface_temperature": surface_temperature,
+            "surface_precipitation": surface_precipitation,
+            "geographic_lines": geographic_lines,
             "potential_vorticity": potential_vorticity,
             "horizontal_section": horizontal_section,
             "jet": jet,
@@ -455,12 +516,14 @@ def prepare_product_objects(project_root: Path, animation: dict, scene: dict, re
 
 
 def select_product_data(animation: dict, scene: dict, product: dict, netcdf_file: Path) -> tuple[dict, dict]:
-    """Selecciona plazos y niveles nativos sin examinar valores meteorológicos ausentes."""
+    """Selecciona plazos y niveles nativos y resuelve los límites gráficos solicitados."""
 
     product_name = str(animation["name"])
     variables = product["variables"]
     required_variables = product["required_variables"]
     surface_temperature = product["objects"]["surface_temperature"]
+    surface_precipitation = product["objects"]["surface_precipitation"]
+    cloud_cover = product["objects"]["cloud_cover"]
     horizontal_section = product["objects"]["horizontal_section"]
     relative_humidity = product["objects"]["relative_humidity"]
     mean_sea_level_pressure = product["objects"]["mean_sea_level_pressure"]
@@ -470,6 +533,40 @@ def select_product_data(animation: dict, scene: dict, product: dict, netcdf_file
     metadata = read_netcdf_metadata(netcdf_file, list(dict.fromkeys(required_variables)), product_name)
     model_identifier = f"{metadata['center']}-{metadata['model']}"
     timeline = build_timeline(animation, metadata, product_name)
+    if cloud_cover is not None or surface_precipitation is not None:
+        with Dataset(netcdf_file) as dataset:
+            description = f"{model_identifier}, corrida {metadata['forecast_date']}, {netcdf_file.name}"
+            if cloud_cover is not None:
+                field = dataset[variables["cloud_cover"]]
+                if field.dimensions != ("time", "lev", "latitude", "longitude") or getattr(field, "units", "") != "%":
+                    raise RuntimeError(f"{description}: {field.name} requiere cobertura por nivel en % y dimensiones isobáricas canónicas.")
+            if surface_precipitation is not None:
+                field = dataset[variables["precipitation"]]
+                if field.dimensions != ("time", "latitude", "longitude") or getattr(field, "units", "") not in ("kg/m^2", "mm") or getattr(field, "statistical_process", "") != "acc":
+                    raise RuntimeError(f"{description}: {field.name} requiere precipitación acumulada de superficie en kg/m^2 o mm.")
+                if surface_precipitation["transparent_zero"]:
+                    # Revisar sólo el campo 2D: no recorrer ni regenerar la nubosidad 3D.
+                    # El corte se coloca bajo el mínimo positivo, sin rampas de alfa que
+                    # atenúen la lluvia débil ni límites subnormales que la GPU redondee a cero.
+                    positive_minimum = None
+                    selected_times = set(timeline["valid_times"])
+                    for index, valid_time in enumerate(metadata["valid_times"]):
+                        if valid_time not in selected_times:
+                            continue
+                        values = np.ma.masked_invalid(field[index]).compressed()
+                        if np.any(values < 0):
+                            raise RuntimeError(f"{description}: {field.name}, plazo {valid_time}, contiene precipitación acumulada negativa; no se aplica transparencia.")
+                        positive = values[values > 0]
+                        if positive.size:
+                            current_minimum = float(positive.min())
+                            positive_minimum = current_minimum if positive_minimum is None else min(positive_minimum, current_minimum)
+                    maximum = float(surface_precipitation["maximum_mm"])
+                    # Si toda la selección es cero o NoData, sólo queda visible el mapa.
+                    surface_precipitation["minimum_plot_mm"] = min(positive_minimum / 2, maximum / 2) if positive_minimum is not None else maximum / 2
+                    print(f"Precipitación {description}: cero transparente; mínimo positivo {positive_minimum} mm, corte gráfico {surface_precipitation['minimum_plot_mm']:g} mm; positivos con opacidad {surface_precipitation['opacity']:g}.")
+                # La equivalencia 1 kg/m² = 1 mm sólo afecta a la leyenda; no cambia los datos.
+                surface_precipitation["initialization_text"] = metadata["forecast_date"].strftime("%Y-%m-%d %H UTC")
+                print(f"Precipitación {description}: acumulado original desde inicio, sin diferencias temporales; los NoData se conservan.")
     if streamlines is not None and streamlines["representation"] == "particles_with_trails":
         trail_seconds = float(streamlines["trail_hours"]) * 3600
         if timeline["step_seconds"] is None or trail_seconds % timeline["step_seconds"]:

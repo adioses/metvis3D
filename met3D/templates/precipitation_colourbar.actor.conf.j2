@@ -1,0 +1,39 @@
+; El campo conserva kg/m² o mm; 1 kg/m² de agua equivale a 1 mm.
+[FileFormat]
+met3dVersion=2.0.0b11/Oct26
+
+[MActor]
+actorName=Precipitación acumulada [mm]
+properties\actor_enabled=true
+properties\colourmap_type=2
+properties\colourmap_transformation=0
+properties\clamp_hcl_colours=true
+properties\extend_above_max=true
+properties\extend_below_min={{ (not surface_precipitation.transparent_zero) | string | lower }}
+properties\min_value={{ surface_precipitation.minimum_plot_mm }}
+properties\max_value={{ surface_precipitation.maximum_mm }}
+properties\steps={{ surface_precipitation.colour_steps }}
+properties\opacity_enabled=true
+properties\predefined\colourmap={{ surface_precipitation.colourmap }}
+properties\predefined\alpha_1={{ surface_precipitation.opacity }}
+properties\predefined\alpha_2={{ surface_precipitation.opacity }}
+properties\predefined\power_alpha=1
+properties\predefined\lightness_adjustment=0
+properties\predefined\saturation_adjustment=0
+properties\reverse_range_enabled={{ surface_precipitation.reverse_colourmap | string | lower }}
+properties\orientation=0
+properties\label_properties\labels_enabled=true
+properties\label_properties\display_description=Lluvia acum. [mm]
+properties\label_properties\label_value_scaling=1
+properties\label_properties\label_colour={{ scene.appearance.text_colour_variant }}
+properties\label_properties\bounding_box=true
+properties\label_properties\bbox_colour={{ scene.appearance.label_background_colour_variant }}
+properties\label_properties\label_size=20
+properties\label_properties\number_of_tick_labels=6
+properties\label_properties\number_of_tick_marks=6
+properties\significant_digits=3
+properties\viewport_position_and_size={{ surface_precipitation.colourbar_rectangle }}
+properties\wire_frame_enabled=false
+
+[Metadata]
+actorConfigType=Transfer function scalar to colour (colour map)

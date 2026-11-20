@@ -1,0 +1,91 @@
+# Prototipo para revisión: nubosidad por nivel y lluvia acumulada original de GFS.
+name: clouds
+scene: config/met3d/scenes/south_america.yaml
+dataset_name: standardized_data
+session_file: met3D/sessions/south_america_base.session.config
+
+variables:
+  cloud_cover: tcdcprs
+  surface_pressure: pressfc
+  precipitation: apcpsfc
+
+data_preparation:
+  surface_pressure: surface_pressure
+  variables:
+    cloud_cover:
+      units: '%'
+      mask_below_surface: true
+    surface_pressure:
+      units: Pa
+      mask_below_surface: false
+    precipitation:
+      units: kg/m^2
+      mask_below_surface: false
+
+objects:
+  time_label:
+    enabled: true
+    text_prefix: 'Válido:'
+    text_suffix: UTC
+    font: DejaVu Sans
+    font_size: 32
+    position: {x: 0.0, y: 0.94}
+    font_colour: [255, 255, 255, 255]
+    background_colour: [0, 0, 0, 160]
+
+  surface_pressure:
+    enabled: true
+    geographic_lines:
+      enabled: true
+      colour: '#AAB8C2'
+    precipitation:
+      enabled: true
+      # Verificado en el GRIB GFS de referencia: el NetCDF conserva el acumulado 0--plazo.
+      # No restar plazos ni convertir ausentes en ceros; +0 no dispone de APCP.
+      accumulation: since_forecast_initialization
+      # Sólo la leyenda usa mm: equivalencia 1 kg/m² de agua = 1 mm.
+      minimum_mm: 10.0
+      maximum_mm: 200.0
+      # El cero deja ver el mapa del relieve; los positivos usan la opacidad configurada.
+      # El corte gráfico se calcula por debajo del mínimo positivo de la selección. batlow
+      transparent_zero: false
+      # 0: sólo mapa del relieve; 1: precipitación completamente opaca.
+      opacity: 0.4
+      colourmap: rainbow
+      reverse_colourmap: false
+      colour_steps: 256
+      colourbar_position: {x: 0.78, y: 0.68, width: 0.035, height: 0.5}
+      note:
+        position: {x: 0.0, y: -0.92}
+        font: DejaVu Sans
+        font_size: 28
+
+  cloud_cover:
+    enabled: true
+    pressure: {bottom_hpa: 1000.0, top_hpa: 100.0}
+    # Transparente hasta 20 %; la opacidad crece hasta 0.18 al llegar a 100 %.
+    # Representa fracción de cobertura del modelo, no densidad óptica de condensado.
+    minimum_percent: 20.0
+    maximum_percent: 100.0
+    maximum_opacity: 0.18
+    colour_steps: 256
+    luminance: 92.0
+    ray_step_size: 0.03
+    colourbar_position: {x: -0.92, y: 0.68, width: 0.035, height: 0.5}
+
+# Cámara fija para comparar la evolución de las estructuras atmosféricas.
+camera:
+  origin: {longitude: -60.93940353393555, latitude: -106.37992095947266, world_z: 58.74783706665039}
+  y_axis: {longitude: -0.04677024111151695, latitude: 0.5455600023269653, world_z: 0.836762011051178}
+  z_axis: {longitude: -0.0714731439948082, latitude: 0.833703339099884, world_z: -0.547561764717102}
+
+timeline:
+  selection: first_hours
+  max_forecast_hours: 120
+
+output:
+  width_px: 1920
+  height_px: 1080
+  frames_per_second: 6
+  video_codec: libx264
+  pixel_format: yuv420p

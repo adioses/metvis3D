@@ -1,0 +1,20 @@
+[FileFormat]
+met3dVersion=2.0.0b11/Oct26
+
+[MActor]
+actorName=Periodo de acumulación de precipitación
+header\TextActor\num_texts=1
+properties\Text%201\text=Precipitación desde {{ surface_precipitation.initialization_text }} | +0 sin dato de lluvia{% if surface_precipitation.transparent_zero %} | 0 mm transparente{% endif %} | Color saturado >= {{ surface_precipitation.maximum_mm }} mm
+properties\Text%201\Font={{ surface_precipitation.note.font }}
+properties\Text%201\font_size={{ surface_precipitation.note.font_size }}
+properties\Text%201\font_colour={{ scene.appearance.text_colour_variant }}
+properties\Text%201\bbox_enabled=true
+properties\Text%201\bbox_colour={{ scene.appearance.label_background_colour_variant }}
+properties\Text%201\coordinate_space=0
+properties\Text%201\anchor=5
+properties\Text%201\position={{ surface_precipitation.note_position }}
+properties\Text%201\enabled=true
+properties\actor_enabled=true
+
+[Metadata]
+actorConfigType=Text

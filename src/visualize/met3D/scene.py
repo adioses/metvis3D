@@ -23,6 +23,12 @@ def write_animation_configuration(project_root: Path, runtime_directory: Path,
     pv_render_mode = product["pv_render_mode"]
     surface_pressure = product["objects"]["surface_pressure"]
     surface_temperature = product["objects"]["surface_temperature"]
+    surface_precipitation = product["objects"]["surface_precipitation"]
+    surface_shading = None
+    if surface_temperature is not None:
+        surface_shading = {"variable_name": variables["air_temperature_2m"], "transfer_function": "T2m [K]"}
+    elif surface_precipitation is not None:
+        surface_shading = {"variable_name": variables["precipitation"], "transfer_function": "Precipitación acumulada [mm]"}
     potential_vorticity = product["objects"]["potential_vorticity"]
     horizontal_section = product["objects"]["horizontal_section"]
     jet = product["objects"]["jet"]
@@ -59,6 +65,9 @@ def write_animation_configuration(project_root: Path, runtime_directory: Path,
         "cloud_cover": cloud_cover,
         "relative_humidity": relative_humidity,
         "surface_temperature": surface_temperature,
+        "surface_precipitation": surface_precipitation,
+        "surface_shading": surface_shading,
+        "geographic_lines": product["objects"]["geographic_lines"],
         "mean_sea_level_pressure": mean_sea_level_pressure,
         "streamlines": streamlines,
         "time_label": time_label,
@@ -118,6 +127,10 @@ def write_animation_configuration(project_root: Path, runtime_directory: Path,
         files["surface_temperature_colourbar"] = render_template(template_environment, "surface_temperature_colourbar.actor.conf.j2", runtime_directory / "surface_temperature_colourbar.actor.conf", context)
         files["surface_temperature_labels"] = render_template(template_environment, "surface_temperature_labels.actor.conf.j2", runtime_directory / "surface_temperature_labels.actor.conf", context)
         actor_files.extend((files["surface_temperature_colourbar"], files["surface_temperature_labels"]))
+    if surface_precipitation is not None:
+        files["precipitation_colourbar"] = render_template(template_environment, "precipitation_colourbar.actor.conf.j2", runtime_directory / "precipitation_colourbar.actor.conf", context)
+        files["precipitation_labels"] = render_template(template_environment, "precipitation_labels.actor.conf.j2", runtime_directory / "precipitation_labels.actor.conf", context)
+        actor_files.extend((files["precipitation_colourbar"], files["precipitation_labels"]))
     if surface_pressure is not None:
         files["surface_pressure"] = render_template(
             template_environment,
