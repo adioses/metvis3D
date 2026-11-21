@@ -1,0 +1,44 @@
+RECURSOS DE IDENTIDAD — OBSERVATORIO SENAMHI
+Extraídos el 20 de noviembre de 2026.
+
+ARCHIVOS ORIGINALES
+
+1. logo-senamhi.svg
+   URL: https://observatorio.senamhi.gob.pe/assets/images/logo-senamhi.svg
+   Formato: SVG vectorial, fondo transparente.
+   viewBox: 0 0 341.6 166.8.
+   Colores incluidos en el SVG:
+   - Azul: #0047BA
+   - Amarillo: #FFC600
+
+2. logo-minam.jpg
+   URL: https://observatorio.senamhi.gob.pe/assets/images/logo-minam.jpg
+   Formato: JPEG, 330 × 71 píxeles, con fondo blanco.
+   Incluye escudo, PERÚ y Ministerio del Ambiente.
+
+Los archivos fueron descargados sin modificar de las URLs que se identificaron
+en las imágenes de la cabecera del observatorio.
+
+INCORPORACIÓN AL PLAN EN VS CODE
+
+Guardar ambos archivos en public/assets/brand/ o en el directorio equivalente
+del proyecto. Es preferible servir las copias locales para evitar depender
+de la disponibilidad o cambios de rutas de la web de referencia.
+
+Ejemplo HTML:
+<img src="/assets/brand/logo-senamhi.svg" alt="SENAMHI" class="logo-senamhi">
+<img src="/assets/brand/logo-minam.jpg" alt="Perú — Ministerio del Ambiente" class="logo-minam">
+
+Ejemplo CSS:
+.logo-senamhi { height: 64px; width: auto; object-fit: contain; }
+.logo-minam { height: 40px; width: auto; object-fit: contain; }
+
+Conservar las proporciones, los colores originales y espacio libre alrededor.
+El JPEG de MINAM contiene fondo blanco; no es una imagen transparente.
+Los tamaños CSS son una propuesta de integración, no medidas oficiales.
+
+PRECISIÓN PARA LA PALETA DEL PLAN
+
+Los colores exactos del archivo de logotipo de SENAMHI son #0047BA y #FFC600.
+La interfaz del observatorio también usa otros valores, entre ellos #0049B9
+y #FFCC20. No confundir los colores de la interfaz con los del archivo de marca.

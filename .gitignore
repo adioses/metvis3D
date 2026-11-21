@@ -41,3 +41,13 @@ __pycache__/
 .coverage
 *.egg-info/
 .venv/
+
+# Publicación local de Visualizaciones 3D
+website/video/*/*
+!website/video/*/.gitkeep
+website/validation/*
+!website/validation/.gitkeep
+website/.local/
+website/build/
+website/dist/
+!website/frontend/static/brand/logo-minam.jpg

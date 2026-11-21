@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="es" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Biblioteca de animaciones meteorológicas tridimensionales de SENAMHI. Consulta, reproduce y descarga los videos disponibles.">
+  <title>{{ settings.title }} · SENAMHI</title>
+  <link rel="icon" href="{{ url_for('static', filename='brand/visualizaciones.svg') }}" type="image/svg+xml">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/website.css') }}">
+  <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+  <script id="website-settings" type="application/json">{{ {'catalog_url': url_for('website.videos'), 'playback': settings.playback}|tojson }}</script>
+  <script type="module" src="{{ url_for('static', filename='js/gallery.js') }}"></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Saltar al contenido</a>
+  <svg class="icon-definitions" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <symbol id="icon-play" viewBox="0 0 24 24"><path d="m9 5 11 7-11 7Z"/></symbol>
+    <symbol id="icon-moon" viewBox="0 0 24 24"><path d="M20.5 14A8.8 8.8 0 0 1 10 3.5 8.8 8.8 0 1 0 20.5 14Z"/></symbol>
+    <symbol id="icon-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/></symbol>
+    <symbol id="icon-close" viewBox="0 0 24 24"><path d="m6 6 12 12M6 18 18 6"/></symbol>
+    <symbol id="icon-download" viewBox="0 0 24 24"><path d="M12 3v12m-5-5 5 5 5-5M4 15v5h16v-5"/></symbol>
+    <symbol id="icon-fullscreen" viewBox="0 0 24 24"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/></symbol>
+    <symbol id="icon-film" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7 3v18M17 3v18M3 8h4m10 0h4M3 16h4m10 0h4"/></symbol>
+  </svg>
+  {% if settings.demonstration %}<div class="demo-banner" role="status">Demostración · Copias de comprobación, sin validación meteorológica</div>{% endif %}
+  <header class="site-header">
+    <div class="header-inner">
+      <a href="{{ url_for('website.index') }}" class="project-brand" aria-label="Visualizaciones 3D, inicio">
+        <img src="{{ url_for('static', filename='brand/visualizaciones.svg') }}" width="43" height="43" alt="">
+        <span><strong>{{ settings.title }}</strong><span class="brand-subtitle">Biblioteca meteorológica</span></span>
+      </a>
+      <div class="header-actions">
+        <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Cambiar a tema claro" title="Cambiar tema">
+          <svg class="icon theme-sun"><use href="#icon-sun"/></svg><svg class="icon theme-moon"><use href="#icon-moon"/></svg>
+          <span id="theme-label">Tema claro</span>
+        </button>
+        <div class="institutional-logos" aria-label="Instituciones">
+          <img class="senamhi-logo" src="{{ url_for('static', filename='brand/logo-senamhi.svg') }}" alt="SENAMHI" width="100" height="49">
+          <img class="minam-logo" src="{{ url_for('static', filename='brand/logo-minam.jpg') }}" alt="Perú · Ministerio del Ambiente" width="167" height="36">
+        </div>
+      </div>
+    </div>
+  </header>
+  <main id="main" class="main-content">
+    <div class="intro-row">
+      <div><p class="eyebrow">Atmósfera en perspectiva</p><h1>Explora las visualizaciones</h1><p class="intro-text">Elige una fecha y descubre las animaciones meteorológicas disponibles.</p></div>
+      <p class="utc-note">Referencias meteorológicas en <strong>UTC</strong></p>
+    </div>
+    <nav id="collections" class="collections" aria-label="Colecciones" hidden></nav>
+    <section id="filters-panel" class="filters-panel" aria-label="Filtrar animaciones" hidden>
+      <div class="filter"><label for="date-filter">Fecha de referencia</label><select id="date-filter"></select></div>
+      <div id="cycle-group" class="filter" hidden><label for="cycle-filter">Hora UTC</label><select id="cycle-filter"></select></div>
+      <div class="filter"><label for="animation-filter">Animación</label><select id="animation-filter"></select></div>
+      <div class="filter"><label for="scene-filter">Escena</label><select id="scene-filter"></select></div>
+      <div id="software-group" class="filter" hidden><label for="software-filter">Herramienta</label><select id="software-filter"></select></div>
+    </section>
+    <section class="gallery-section" aria-label="Videos disponibles" aria-busy="true" id="results-section">
+      <div class="results-heading"><h2 id="results-title">Cargando biblioteca…</h2><p id="results-description"></p></div>
+      <p id="catalog-error" class="error-message" role="alert" hidden></p>
+      <div id="empty-state" class="empty-state" hidden><svg class="icon"><use href="#icon-film"/></svg><h3>Sin animaciones disponibles</h3><p id="empty-description">Esta biblioteca todavía no tiene videos publicados.</p></div>
+      <div id="gallery" class="gallery"></div>
+    </section>
+    <noscript><p class="error-message">Activa JavaScript para consultar el catálogo y reproducir los videos.</p></noscript>
+    <footer class="site-footer"><span>Visualizaciones 3D <span class="footer-separator">/</span> SENAMHI</span><span>Productos de modelos y datos meteorológicos · Consulta por fecha de referencia</span></footer>
+  </main>
+  <dialog id="player-dialog" class="player-dialog" aria-labelledby="player-title">
+    <div class="dialog-header"><div><p id="player-eyebrow" class="eyebrow"></p><h2 id="player-title"></h2></div><button id="close-player" class="icon-button" type="button" aria-label="Cerrar reproductor"><svg class="icon"><use href="#icon-close"/></svg></button></div>
+    <div class="player-layout">
+      <div class="player-main">
+        <div id="video-stage" class="video-stage"><video id="main-video" controls playsinline preload="none" aria-label="Animación meteorológica"></video></div>
+        <p id="playback-error" class="error-message" role="alert" hidden></p>
+        <div class="playback-tools">
+          <label class="loop-control"><input id="loop-control" type="checkbox"> Repetir</label>
+          <label class="speed-control" for="speed-control">Velocidad <select id="speed-control"></select></label>
+          <button id="fullscreen-control" class="secondary-button" type="button"><svg class="icon"><use href="#icon-fullscreen"/></svg>Pantalla completa</button>
+          <a id="download-video" class="download-button" download><svg class="icon"><use href="#icon-download"/></svg>Descargar MP4</a>
+        </div>
+      </div>
+      <aside class="video-information" aria-label="Información de la animación"><h3>Acerca de esta animación</h3><p id="animation-description" hidden></p><dl id="video-details"></dl><div id="extra-metadata"></div></aside>
+    </div>
+  </dialog>
+  <template id="video-card-template">
+    <article class="video-card"><button class="card-open" type="button"><div class="thumbnail-wrap"><img class="thumbnail" loading="lazy" decoding="async" alt=""><span class="thumbnail-placeholder" hidden><svg class="icon"><use href="#icon-film"/></svg><span>Vista previa no disponible</span></span><span class="play-badge"><svg class="icon"><use href="#icon-play"/></svg><span>Reproducir</span></span><span class="duration" hidden></span></div><div class="card-content"><div class="card-topline"><span class="source-label"></span><span class="software-label"></span></div><h3></h3><p class="scene-label"></p><p class="reference-label"></p></div></button></article>
+  </template>
+</body>
+</html>

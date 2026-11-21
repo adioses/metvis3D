@@ -24,6 +24,7 @@ paraview/     Scripts de render ParaView y datos temporales descartables.
 assets/       DEM, límites, paletas meteorológicas y recursos institucionales.
 data/         Datos de trabajo no versionados.
 outputs/      PNG, videos y productos publicados no versionados.
+website/      Biblioteca web local y ambiente Conda independiente.
 docs/         Especificaciones técnicas.
 ```
 
@@ -118,3 +119,55 @@ del mismo entorno:
 docker compose run --rm dev wgrib2 -version
 docker compose run --rm dev python -c "import pygrib, netCDF4"
 ```
+
+## Visualizaciones 3D
+
+La biblioteca web consulta videos ya generados, con Flask, Jinja y Gunicorn.
+El usuario aprobó el recorrido visual y funcional y confirmó acceso desde la
+red local el 2026-11-21. La máquina de desarrollo se utiliza con arranque manual;
+el servicio automático se reserva para la máquina final.
+
+La instalación inicial utiliza un ambiente separado del científico:
+
+```bash
+conda env create -f website/environment.yml
+cd website
+conda run -n metvis3d-web python -m pip install --no-build-isolation --no-deps -e .
+cd ..
+```
+
+Desde la raíz del proyecto, iniciar la web con:
+
+```bash
+conda run --no-capture-output -n metvis3d-web python website/scripts/run_website.py
+```
+
+Abrir `http://127.0.0.1:8050/` en esta computadora o
+`http://<IP_LOCAL>:8050/` desde otro equipo de la misma red. La dirección y el
+puerto se configuran en `website/config/website.yaml`; actualmente escucha en
+`0.0.0.0:8050`. Detener con **Ctrl+C**. Si cambia esa configuración, detener y
+volver a iniciar el proceso para aplicarla.
+
+La preparación manual de contenido se ejecuta con:
+
+```bash
+conda run --no-capture-output -n metvis3d-web python website/scripts/publish_videos.py
+```
+
+`website/config/publication.yaml` limita el origen a la referencia acordada.
+El proceso copia los MP4 sin recodificarlos, comprueba SHA-256 y genera sus JPG
+y metadatos de reproducción. La web sólo lee `website/video/recent/` y
+`website/video/historical/`; refleja los cambios al recargar. Si un MP4 se
+incorpora directamente, el JPG del mismo nombre base es opcional: su ausencia
+muestra una imagen neutra y conserva la reproducción. Las variables y periodos
+meteorológicos sólo se muestran cuando se conocen y se declaran explícitamente.
+
+La plantilla de servicio está en `website/deploy/metvis3d-web.service.in`.
+En la máquina final, `website/scripts/prepare_service.py`, ejecutado con su
+ambiente `metvis3d-web`, generará `website/.local/metvis3d-web.service` con las
+rutas de esa instalación. Su instalación y arranque tras reiniciar siguen
+pendientes para ese equipo. No instalar el servicio automático en desarrollo.
+
+El contrato de archivos, alcance y comprobaciones está en
+[el plan de implementación](docs/website-plan-implementacion.md). Los registros
+locales de comprobación se conservan en `website/validation/` y no se versionan.

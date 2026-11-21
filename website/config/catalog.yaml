@@ -1,0 +1,48 @@
+animations:
+  dana:
+    title: DANA
+    description: Visualización tridimensional de la estructura atmosférica asociada a depresiones aisladas en niveles altos.
+    order: 1
+  friaje:
+    title: Friaje
+    description: Exploración de la estructura atmosférica de casos seleccionados para estudiar ingresos de aire frío.
+    order: 2
+  jet:
+    title: Corriente en chorro
+    description: Estructura tridimensional del viento en altura.
+    order: 3
+scenes:
+  south_america:
+    title: Sudamérica
+    order: 1
+sources:
+  ecmwf-ifs:
+    title: IFS
+    description: ECMWF · Integrated Forecasting System
+    kind: forecast
+    order: 1
+  ncep-gfs:
+    title: GFS
+    description: NCEP · Global Forecast System
+    kind: forecast
+    order: 2
+  ncep-eta:
+    title: ETA
+    kind: forecast
+    order: 3
+  ncep-wrf:
+    title: WRF
+    kind: forecast
+    order: 4
+  ecmwf-era5:
+    title: ERA5
+    description: Reanálisis de ECMWF
+    kind: reanalysis
+    order: 5
+software:
+  met3d:
+    title: Met.3D
+    order: 1
+  paraview:
+    title: ParaView
+    order: 2

@@ -75,6 +75,16 @@ Actividades a definir y ejecutar:
 Resultado esperado: plataforma web piloto funcional con acceso a productos
 multimedia según los criterios solicitados.
 
+Avance confirmado al 2026-11-21: piloto Visualizaciones 3D implementado con
+Flask/Jinja y Gunicorn, 66 videos de referencia preparados y recorrido visual
+y funcional aprobado por el usuario. El acceso desde la red local está
+confirmado. El alcance inicial consulta por colección, fecha/ciclo, animación,
+escena y herramienta, mostrando juntas las fuentes disponibles; el filtro por
+variable queda fuera de esta primera versión. En desarrollo se utiliza
+arranque manual. El servicio automático está preparado y se instalará y
+comprobará en la máquina final, conforme a D-016. Este avance no declara
+completado el despliegue final ni la publicación en Internet.
+
 ## D. Integración, operación y documentación
 
 Objetivo: dejar implementado y operativo un flujo modular desde la preparación

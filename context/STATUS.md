@@ -1,6 +1,6 @@
 # Estado del proyecto
 
-**Última actualización:** 2026-11-17
+**Última actualización:** 2026-11-21
 
 ## Resumen
 
@@ -14,6 +14,10 @@ por rangos y partículas de viento en todo el dominio disponible fue aprobada
 el 2026-11-17, con IFS del 2026-09-03 00 UTC como referencia. Continúan
 pendientes la validación meteorológica de los casos, otras composiciones y
 el recorrido completo de selecciones con calendario mixto de IFS.
+La web Visualizaciones 3D está implementada como piloto local; el usuario
+aprobó su recorrido visual y funcional y confirmó acceso desde la red local
+el 2026-11-21. En desarrollo se levanta manualmente; el servicio automático
+queda preparado para la máquina final.
 
 ## Estado frente al alcance contractual
 
@@ -21,8 +25,8 @@ el recorrido completo de selecciones con calendario mixto de IFS.
 |---|---|---|
 | a) Preparación, transformación y estandarización | En cierre | Conversor, configuraciones, reportes y benchmarks implementados; falta validación científica documentada. |
 | b) Visualizaciones y animaciones | Implementado técnicamente | Composiciones de friaje TPE/RH y anticiclones aprobadas visualmente; siguen pendientes la validación meteorológica, otros productos y el recorrido completo del calendario mixto de IFS. |
-| c) Plataforma web piloto | En espera | Depende de los productos que se generen y de las condiciones del servidor final. |
-| d) Integración, operación y documentación | En desarrollo | Existen flujos reproducibles para conversión y visualización; falta integrar y documentar la operación completa. |
+| c) Plataforma web piloto | Piloto local aprobado | Galería, filtros, reproducción, descarga y temas comprobados por el usuario; acceso por red local confirmado. Falta instalar y verificar la operación en la máquina final. |
+| d) Integración, operación y documentación | En desarrollo | Conversión, visualización y preparación manual de contenido web disponibles; falta integrar la entrega científica y comprobar el despliegue final. |
 
 ## Implementado y verificado para el ítem a)
 
@@ -260,7 +264,44 @@ el recorrido completo de selecciones con calendario mixto de IFS.
   diseño visual; sigue pendiente su validación meteorológica y con otros
   modelos.
 
+## Plataforma web piloto
+
+- Flask/Jinja y Gunicorn operan en `metvis3d-web`, con un `environment.yml`
+  independiente dentro de `website/`. Se verificaron Python 3.13.18,
+  Flask 3.1.3, Gunicorn 27.0.1, PyYAML 6.0.3 y FFmpeg 9.0.2.
+- Se prepararon los 66 MP4 de `outputs/20261106/outputs/`, con copias idénticas
+  por SHA-256, JPG y metadatos de reproducción. La repetición conservó las
+  copias idénticas. `historical/` habitual continúa vacía; se comprobó con
+  copias temporales identificadas como demostración.
+- Se registraron 55 comprobaciones de catálogo, archivos y publicación,
+  21 observaciones HTTP contra Gunicorn y una comprobación real bajo
+  `/visualizaciones/`. Se verificaron HTTP Range 206 y descargas íntegras.
+  Los registros generados se conservan localmente en `website/validation/`.
+- El usuario confirmó que pasan los filtros, controles de reproducción,
+  cierre, descarga, temas, adaptación de ventana/zoom y navegación con teclado.
+  Confirmó después acceso desde la red local. No se registraron navegadores,
+  versiones o resoluciones concretos; esta aprobación no valida científicamente
+  los eventos de los videos.
+- En desarrollo, la web se inicia manualmente mediante
+  `conda run --no-capture-output -n metvis3d-web python website/scripts/run_website.py`
+  y se detiene con Ctrl+C. El YAML configura `0.0.0.0:8050`; los cambios de
+  escucha requieren reiniciar el proceso manual.
+- La plantilla systemd y su generador están preparados. La unidad generada
+  pasó `systemd-analyze verify`; una unidad temporal de usuario, en otro
+  puerto, permitió comprobar arranque sin activar Conda y recuperación tras
+  fallo del proceso principal. Esa unidad temporal quedó detenida. No se
+  instaló un servicio permanente en desarrollo. La instalación de sistema y
+  el arranque tras reiniciar se comprobarán en la máquina final.
+- No se modificaron los datos científicos ni sus ambientes. La entrega desde
+  los generadores a la carpeta web sigue siendo manual; no hay publicación
+  en Internet. Uso operativo en `README.md` y contrato en
+  `docs/website-plan-implementacion.md`.
+
 ## Pendientes y siguiente actividad
+
+- Continuar los ajustes del piloto mediante arranque manual en desarrollo.
+  Cuando se defina la máquina final, regenerar allí la unidad systemd,
+  instalarla y comprobar red, recuperación y arranque tras reiniciar.
 
 - Acordar y resolver el recorrido completo de selecciones con intervalos
   mixtos de IFS en Met.3D, conservando la grilla y los plazos nativos.

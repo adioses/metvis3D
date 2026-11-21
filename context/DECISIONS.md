@@ -252,3 +252,25 @@ sin alterar la grilla, los niveles ni el NetCDF estandarizado. La aprobación
 fija el diseño visual y no confirma detección automática de centros,
 validación meteorológica del fenómeno ni compatibilidad probada con otros
 modelos. Uso y comprobaciones en `docs/met3d.md`, sección Anticiclones.
+
+## D-016 — Web Visualizaciones 3D y operación según la máquina
+
+**Fecha:** 2026-11-21
+**Decisión:** el usuario aprueba el recorrido visual y funcional del piloto
+Visualizaciones 3D y confirma acceso por la red local. La aplicación usa
+Flask/Jinja y Gunicorn en el ambiente independiente `metvis3d-web`, consulta
+MP4 publicados en dos colecciones y mantiene las configuraciones en YAML.
+La preparación de copias, miniaturas y metadatos es un proceso manual separado
+de las visitas y de los generadores científicos.
+
+La máquina de desarrollo se opera mediante arranque manual y Ctrl+C. El
+servicio systemd con inicio automático se reserva para la máquina final; su
+plantilla y generador obtienen allí las rutas del proyecto y del ambiente
+instalado. No se instala arranque automático en desarrollo.
+
+**Impacto:** el piloto puede revisarse y consultarse en la red interna sin
+alterar los originales científicos. La comprobación de una unidad temporal
+acredita arranque y recuperación del proceso en esta workstation, pero la
+instalación permanente y el arranque tras reiniciar siguen pendientes en el
+equipo final. La publicación en Internet, el login, la comparación simultánea
+y la integración de la entrega científica quedan fuera de la primera versión.

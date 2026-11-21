@@ -1,0 +1,21 @@
+title: Visualizaciones 3D
+video_root: video
+catalog: config/catalog.yaml
+collections:
+  recent: Fechas recientes
+  historical: Eventos históricos
+server:
+  # Escuchar en la workstation para permitir la comprobación desde la red interna.
+  host: 0.0.0.0
+  port: 8050
+  workers: 2
+  threads: 4
+  timeout: 60
+# Vacío en la raíz; por ejemplo /visualizaciones para comprobar un prefijo local.
+url_prefix: ""
+# Sólo se activa en las configuraciones temporales de comprobación.
+demonstration: false
+playback:
+  speeds: [0.25, 0.5, 1, 1.5, 2]
+  initial_speed: 1
+  loop: true
