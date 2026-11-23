@@ -21,8 +21,6 @@ def run_service_preparation(config_path="config/website.yaml"):
     python_executable = Path(sys.executable).absolute()
     if os.getuid() == 0:
         raise CatalogError("Prepara el servicio como el usuario del proyecto, sin ejecutar Python con sudo.")
-    if Path(sys.prefix).name != "metvis3d-web":
-        raise CatalogError("La preparación del servicio requiere el ambiente Conda independiente metvis3d-web.")
     account = pwd.getpwuid(os.getuid())
     template_path = WEBSITE_ROOT / "deploy/metvis3d-web.service.in"
     unit_path = WEBSITE_ROOT / ".local/metvis3d-web.service"

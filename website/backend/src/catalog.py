@@ -106,11 +106,8 @@ def published_file(video_root, collection, filename):
 
 
 def read_metadata(path, identification):
-    """Comprobar información opcional sin inventar variables ni plazos."""
+    """Leer los campos mostrados por la web y comprobar su identidad y tipos."""
     data = read_yaml(path)
-    allowed = set(identification) | {"variables", "period", "notes", "playback"}
-    if unknown := data.keys() - allowed:
-        raise CatalogError(f"{path.name}: campos no reconocidos: {', '.join(sorted(unknown))}.")
     for field, value in identification.items():
         if field in data and data[field] != value:
             raise CatalogError(f"{path.name}: {field} contradice el nombre del MP4 o su colección.")
@@ -122,35 +119,27 @@ def read_metadata(path, identification):
             raise CatalogError(f"{path.name}: variables debe ser una lista.")
         for variable in variables:
             if (not isinstance(variable, dict) or not variable.get("name")
-                    or variable.keys() - {"name", "title", "units"}
-                    or any(not isinstance(value, str) for value in variable.values())):
-                raise CatalogError(f"{path.name}: cada variable requiere name y admite title y units como texto.")
+                    or any(not isinstance(variable[field], str)
+                           for field in ("name", "title", "units") if field in variable)):
+                raise CatalogError(f"{path.name}: cada variable requiere name; name, title y units deben ser texto.")
     if "period" in data:
         period = data["period"]
-        if not isinstance(period, dict) or set(period) != {"start", "end"}:
-            raise CatalogError(f"{path.name}: period requiere start y end con tiempos UTC explícitos.")
-        times = []
+        if (not isinstance(period, dict)
+                or any(not isinstance(period.get(field), (str, datetime)) for field in ("start", "end"))):
+            raise CatalogError(f"{path.name}: period requiere start y end como texto o fecha y hora.")
+        # YAML puede leer fechas ISO como datetime; se presentan con su zona declarada.
         for field in ("start", "end"):
-            try:
-                value = datetime.fromisoformat(str(period[field]).replace("Z", "+00:00"))
-            except ValueError as error:
-                raise CatalogError(f"{path.name}: period.{field} inválido: {error}") from error
-            if value.utcoffset() is None or value.utcoffset().total_seconds() != 0:
-                raise CatalogError(f"{path.name}: period.{field} debe declarar UTC.")
-            times.append(value)
-        if times[1] < times[0]:
-            raise CatalogError(f"{path.name}: period.end es anterior a period.start.")
+            if isinstance(period[field], datetime):
+                period[field] = period[field].isoformat()
     if "playback" in data:
         playback = data["playback"]
-        allowed_playback = {"duration_seconds", "width", "height", "codec", "frame_rate"}
-        if not isinstance(playback, dict) or playback.keys() - allowed_playback:
-            raise CatalogError(f"{path.name}: campos de playback inválidos.")
-        for field, value in playback.items():
-            if field == "codec":
-                valid = isinstance(value, str) and bool(value)
-            else:
-                valid = type(value) in (int, float) and math.isfinite(value) and value > 0
-            if not valid:
+        if not isinstance(playback, dict):
+            raise CatalogError(f"{path.name}: playback debe ser un mapa.")
+        for field in ("duration_seconds", "width", "height"):
+            if field not in playback:
+                continue
+            value = playback[field]
+            if type(value) not in (int, float) or not math.isfinite(value) or value <= 0:
                 raise CatalogError(f"{path.name}: playback.{field} inválido.")
     return {field: data[field] for field in ("variables", "period", "notes", "playback") if field in data}
 
@@ -159,25 +148,6 @@ def read_catalog(settings):
     """Leer configuración, revisar las colecciones y construir el catálogo completo."""
     # Enriquecimiento descriptivo independiente de los identificadores publicados.
     descriptions = read_yaml(settings["catalog"])
-    categories = {"animations", "scenes", "sources", "software"}
-    if descriptions.keys() - categories:
-        raise CatalogError("catalog.yaml: se admiten animations, scenes, sources y software.")
-    for category in categories:
-        entries = descriptions.get(category, {})
-        if not isinstance(entries, dict):
-            raise CatalogError(f"catalog.yaml: {category} debe ser un mapa por identificador.")
-        for identifier, entry in entries.items():
-            if not isinstance(identifier, str) or not re.fullmatch(IDENTIFIER, identifier) or not isinstance(entry, dict):
-                raise CatalogError(f"catalog.yaml: entrada inválida en {category}: {identifier}.")
-            if entry.keys() - {"title", "description", "order", "kind"}:
-                raise CatalogError(f"catalog.yaml: campos inválidos en {category}/{identifier}.")
-            for field in ("title", "description"):
-                if field in entry and not isinstance(entry[field], str):
-                    raise CatalogError(f"catalog.yaml: {category}/{identifier}/{field} debe ser texto.")
-            if "order" in entry and type(entry["order"]) is not int:
-                raise CatalogError(f"catalog.yaml: order inválido en {category}/{identifier}.")
-            if "kind" in entry and (category != "sources" or entry["kind"] not in ("forecast", "reanalysis")):
-                raise CatalogError(f"catalog.yaml: kind inválido en {category}/{identifier}.")
 
     # La raíz ausente es un error; una colección todavía ausente es válida.
     video_root = settings["video_root"]
@@ -206,7 +176,21 @@ def read_catalog(settings):
                          **fields, "metadata": metadata, "has_thumbnail": thumbnail_path.is_file()}
                 for field, category in (("animation", "animations"), ("scene", "scenes"),
                                         ("source", "sources"), ("software", "software")):
-                    entry[f"{field}_info"] = {"title": fields[field], **descriptions.get(category, {}).get(fields[field], {})}
+                    entries = descriptions.get(category, {})
+                    if not isinstance(entries, dict):
+                        raise CatalogError(f"catalog.yaml: {category} debe ser un mapa por identificador.")
+                    identifier = fields[field]
+                    description = entries.get(identifier, {})
+                    if not isinstance(description, dict):
+                        raise CatalogError(f"catalog.yaml: entrada inválida en {category}/{identifier}.")
+                    for text_field in ("title", "description"):
+                        if text_field in description and not isinstance(description[text_field], str):
+                            raise CatalogError(f"catalog.yaml: {category}/{identifier}/{text_field} debe ser texto.")
+                    if "order" in description and type(description["order"]) is not int:
+                        raise CatalogError(f"catalog.yaml: order inválido en {category}/{identifier}.")
+                    if category == "sources" and "kind" in description and not isinstance(description["kind"], str):
+                        raise CatalogError(f"catalog.yaml: kind debe ser texto en {category}/{identifier}.")
+                    entry[f"{field}_info"] = {"title": identifier, **description}
                 entry["reference_label"] = "Corrida" if entry["source_info"].get("kind") == "forecast" else "Fecha de referencia"
                 videos.append(entry)
     except OSError as error:

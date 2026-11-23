@@ -53,7 +53,7 @@ export function openPlayer(entry) {
   if (metadata.playback?.width && metadata.playback?.height) addDetail("Resolución", `${metadata.playback.width} × ${metadata.playback.height}`);
   extra.replaceChildren();
   if (metadata.variables?.length) addExtra("Variables", metadata.variables.map(item => `${item.title || item.name}${item.units ? ` (${item.units})` : ""}`).join(" · "));
-  if (metadata.period) addExtra("Periodo representado", `${metadata.period.start} — ${metadata.period.end} · UTC`);
+  if (metadata.period) addExtra("Periodo representado", `${metadata.period.start} — ${metadata.period.end}`);
   if (metadata.notes) addExtra("Notas", metadata.notes);
   download.href = entry.download_url;
   download.download = entry.filename;
