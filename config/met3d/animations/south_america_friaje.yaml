@@ -49,27 +49,27 @@ objects:
   surface_pressure:
     enabled: true
     # T2m aporta el color; pressfc conserva la geometría del relieve.
-    temperature:
-      enabled: true
-      minimum_c: -20.0
-      maximum_c: 50.0
-      # Equivalencia exclusiva de la leyenda; el campo permanece en kelvin.
-      kelvin_offset: 273.15
-      colourmap: vik
-      reverse_colourmap: false
-      colour_steps: 256
-      colourbar:
-        position:
-          x: -0.90
-          y: 0.70
-          width: 0.035
-          height: 0.65
-        ticks_c: [-20, -10, 0, 10, 20, 30, 40, 50]
-        title: 'T2m [°C]'
-        font: DejaVu Sans
-        font_size: 20
-        label_spacing: 0.015
-        title_spacing: 0.07
+    # temperature:
+    #   enabled: true
+    #   minimum_c: -20.0
+    #   maximum_c: 50.0
+    #   # Equivalencia exclusiva de la leyenda; el campo permanece en kelvin.
+    #   kelvin_offset: 273.15
+    #   colourmap: vik
+    #   reverse_colourmap: false
+    #   colour_steps: 256
+    #   colourbar:
+    #     position:
+    #       x: -0.90
+    #       y: 0.70
+    #       width: 0.035
+    #       height: 0.65
+    #     ticks_c: [-20, -10, 0, 10, 20, 30, 40, 50]
+    #     title: 'T2m [°C]'
+    #     font: DejaVu Sans
+    #     font_size: 20
+    #     label_spacing: 0.015
+    #     title_spacing: 0.07
 
   cold_air:
     enabled: true
@@ -89,30 +89,30 @@ objects:
     colour_steps: 256
     ray_step_size: 0.1
 
-  # relative_humidity:
-  #   enabled: true
-  #   # Conserva todos los niveles nativos; la caja visible se limita a la escena.
-  #   # pressure: all_available
-  #   pressure:
-  #     bottom_hpa: 1000.0
-  #     top_hpa: 700.0
-  #   threshold_percent: 70.0
-  #   maximum_percent: 100.0
-  #   opacity: 0.2
-  #   hue: 310.0
-  #   chroma: 35.0
-  #   luminance: 75.0
-  #   # grey es la paleta nativa de grises; HCL recupera el color anterior.
-  #   colourmap: hot_wind
-  #   reverse_colourmap: true
-  #   colour_steps: 256
-  #   ray_step_size: 0.1
-  #   # Posición en coordenadas gráficas de Met.3D, separada de la leyenda TPE.
-  #   colourbar_position:
-  #     x: -0.95
-  #     y: 0.8
-  #     width: 0.045
-  #     height: 0.5
+  relative_humidity:
+    enabled: true
+    # Conserva todos los niveles nativos; la caja visible se limita a la escena.
+    # pressure: all_available
+    pressure:
+      bottom_hpa: 1000.0
+      top_hpa: 700.0
+    threshold_percent: 70.0
+    maximum_percent: 100.0
+    opacity: 0.2
+    hue: 310.0
+    chroma: 35.0
+    luminance: 75.0
+    # grey es la paleta nativa de grises; HCL recupera el color anterior.
+    colourmap: hot_wind
+    reverse_colourmap: true
+    colour_steps: 256
+    ray_step_size: 0.1
+    # Posición en coordenadas gráficas de Met.3D, separada de la leyenda TPE.
+    colourbar_position:
+      x: -0.95
+      y: 0.8
+      width: 0.045
+      height: 0.5
 
 # Cámara fija para seguir el avance sin movimiento de la vista.
 camera:

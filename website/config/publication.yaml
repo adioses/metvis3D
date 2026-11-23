@@ -1,8 +1,8 @@
 # Todas las rutas relativas se resuelven respecto de website/.
-source_root: ../outputs/20261106/outputs
+source_root: ../outputs/20261122
 website_config: config/website.yaml
 collection: recent
-report: validation/publication.json
+report: validation/publication-20261122.json
 thumbnail:
   fraction: 0.5
   width: 960
@@ -11,7 +11,10 @@ thumbnail:
 mappings:
   met3d:
     dana: {animation: dana, scene: south_america}
+    dana_dvr: {animation: dana_dvr, scene: south_america}
     friaje: {animation: friaje, scene: south_america}
     jet: {animation: jet, scene: south_america}
+    anticyclones: {animation: anticyclones, scene: south_america}
+    clouds: {animation: clouds, scene: south_america}
   paraview:
     south_america_jet: {animation: jet, scene: south_america}

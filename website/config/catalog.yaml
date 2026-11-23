@@ -3,14 +3,26 @@ animations:
     title: DANA
     description: Visualización tridimensional de la estructura atmosférica asociada a depresiones aisladas en niveles altos.
     order: 1
+  dana_dvr:
+    title: DANA volumétrica
+    description: Variante con renderizado directo de volumen para explorar la estructura atmosférica de casos seleccionados de DANA.
+    order: 2
   friaje:
     title: Friaje
     description: Exploración de la estructura atmosférica de casos seleccionados para estudiar ingresos de aire frío.
-    order: 2
+    order: 3
   jet:
     title: Corriente en chorro
     description: Estructura tridimensional del viento en altura.
-    order: 3
+    order: 4
+  anticyclones:
+    title: Anticiclones
+    description: Visualización de presión al nivel del mar y circulación del viento sobre Sudamérica.
+    order: 5
+  clouds:
+    title: Nubosidad
+    description: Visualización tridimensional de la cobertura nubosa del modelo sobre Sudamérica.
+    order: 6
 scenes:
   south_america:
     title: Sudamérica
