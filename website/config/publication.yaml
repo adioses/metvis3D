@@ -1,8 +1,8 @@
 # Todas las rutas relativas se resuelven respecto de website/.
-source_root: ../outputs/20261122
+source_root: ../outputs/
 website_config: config/website.yaml
 collection: recent
-report: validation/publication-20261122.json
+report: validation/publication.json
 thumbnail:
   fraction: 0.5
   width: 960
