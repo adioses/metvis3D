@@ -223,6 +223,8 @@ def prepare_runtime_session(
         "MSceneViews\\MSceneView_0\\custom_resolution_width": require_value(output, ("width_px",), f"de animación {animation_name}"),
         "MSceneViews\\MSceneView_0\\custom_resolution_height": require_value(output, ("height_px",), f"de animación {animation_name}"),
         "Animation\\save_directory": frames_directory.resolve(),
+        "Animation\\enable_camera_animation": "false",
+        "Animation\\enable_time_animation": "true",
         "TimeControls\\2\\TimeControl\\time": encode_utc_time_variant(timeline["valid_times"][0]),
         "TimeControls\\2\\TimeControl\\time_dimensions\\size": 1,
         "Animation\\from_time": encode_utc_time_variant(timeline["valid_times"][0]),
@@ -233,6 +235,7 @@ def prepare_runtime_session(
         session_settings["Animation\\time_step"] = timeline["step_seconds"]
         session_settings["Animation\\time_step_unit"] = 0
     if trajectory and trajectory.get("enabled"):
+        session_settings["Animation\\enable_camera_animation"] = "true"
         session_settings["Animation\\cam_runtime_seconds"] = timeline["camera_runtime_seconds"]
         session_settings["Animation\\delay_ms"] = 1000
         session_settings["Animation\\advance_type"] = 0

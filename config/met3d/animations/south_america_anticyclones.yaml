@@ -1,4 +1,4 @@
-# Composición aprobada el 2026-11-17: altas del Pacífico Sur y del Atlántico Sur.
+# Variante experimental: PNM y barbas horizontales en 925, 850 y 700 hPa.
 name: anticyclones
 scene: config/met3d/scenes/south_america.yaml
 dataset_name: standardized_data
@@ -9,7 +9,6 @@ variables:
   surface_pressure: pressfc
   wind_u: ugrdprs
   wind_v: vgrdprs
-  wind_omega: vvelprs
 
 data_preparation:
   surface_pressure: surface_pressure
@@ -25,9 +24,6 @@ data_preparation:
       mask_below_surface: true
     wind_v:
       units: m/s
-      mask_below_surface: true
-    wind_omega:
-      units: Pa/s
       mask_below_surface: true
 
 objects:
@@ -59,39 +55,46 @@ objects:
       font: DejaVu Sans
       font_size: 15
 
-  streamlines:
-    enabled: true
-    representation: particles_with_trails
-    pressure: {bottom_hpa: 1000.0, top_hpa: 500.0}
-    seed_pressure_levels_hpa: [925.0, 850.0, 700.0]
-    seed_spacing_degrees: 4.0
-    # Siembra en todo el dominio IFS disponible dentro de la escena de Sudamérica.
-    # El NetCDF llega a 56°S; la escena conserva su borde gráfico en 60°S.
-    seed_areas:
-      south_america: {west: -130.0, south: -56.0, east: -10.0, north: 30.0}
-    # Rastro pasado desde una malla de posiciones actuales, renovado en cada plazo.
-    # Al inicio se usa únicamente la historia disponible dentro de la corrida.
-    trail_hours: 6.0
-    substeps_per_data_timestep: 12
-    sphere_radius: 0.22
-    # Alternativa representation: streamlines para el viento fijo de cada plazo.
-    # El muestreo interno de la integración no modifica ni remuestrea la malla NetCDF.
-    # En 2.0.0b11, Met.3D aplica Δs como paso de integración con viento en m/s y Pa/s.
-    integration_step_seconds: 300.0
-    number_of_segments: 1200
-    integration_method: runge_kutta
-    interpolation_method: trilinear
-    tube_radius: 0.055
-    colour: "#164B9B"
-
-# Misma cámara fija utilizada para explorar el friaje.
-camera:
-  origin: {longitude: -64.7630386352539, latitude: -93.39141082763672, world_z: 62.55768585205078}
-  y_axis: {longitude: -0.056530460715293884, latitude: 0.6732198596000671, world_z: 0.7372750639915466}
-  z_axis: {longitude: -0.061693187803030014, latitude: 0.7346889972686768, world_z: -0.6755884885787964}
-#  origin: {longitude: -30.441743850708008, latitude: -115.15374755859375, world_z: 99.71694946289062}
-#  y_axis: {longitude: -0.2489262819290161, latitude: 0.6657854318618774, world_z: 0.7033936381340027}
-#  z_axis: {longitude: -0.24633359909057617, latitude: 0.6588489413261414, world_z: -0.710798442363739}
+  horizontal_sections:
+    wind_925:
+      enabled: true
+      pressure_hpa: 925.0
+      level_selection: exact
+      layers:
+        wind:
+          enabled: true
+          type: wind_barbs
+          spacing_degrees: 2.0
+          min_length_degrees: 0.1
+          max_length_degrees: 0.75
+          line_width: 0.04
+          colour: [0, 0, 127, 255]
+    wind_850:
+      enabled: false
+      pressure_hpa: 850.0
+      level_selection: exact
+      layers:
+        wind:
+          enabled: true
+          type: wind_barbs
+          spacing_degrees: 2.0
+          min_length_degrees: 0.1
+          max_length_degrees: 0.75
+          line_width: 0.04
+          colour: [0, 0, 127, 255]
+    wind_700:
+      enabled: false
+      pressure_hpa: 700.0
+      level_selection: exact
+      layers:
+        wind:
+          enabled: true
+          type: wind_barbs
+          spacing_degrees: 2.0
+          min_length_degrees: 0.1
+          max_length_degrees: 0.75
+          line_width: 0.04
+          colour: [0, 0, 127, 255]
 
 timeline:
   selection: first_hours

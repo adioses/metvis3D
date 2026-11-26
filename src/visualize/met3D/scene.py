@@ -30,7 +30,7 @@ def write_animation_configuration(project_root: Path, runtime_directory: Path,
     elif surface_precipitation is not None:
         surface_shading = {"variable_name": variables["precipitation"], "transfer_function": "Precipitación acumulada [mm]"}
     potential_vorticity = product["objects"]["potential_vorticity"]
-    horizontal_section = product["objects"]["horizontal_section"]
+    horizontal_sections = product["objects"]["horizontal_sections"]
     jet = product["objects"]["jet"]
     cold_air = product["objects"]["cold_air"]
     cloud_cover = product["objects"]["cloud_cover"]
@@ -59,7 +59,6 @@ def write_animation_configuration(project_root: Path, runtime_directory: Path,
         "derived_variable_mappings": derived_variable_mappings,
         "object_bounding_boxes": object_bounding_boxes,
         "potential_vorticity": potential_vorticity,
-        "horizontal_section": horizontal_section,
         "jet": jet,
         "cold_air": cold_air,
         "cloud_cover": cloud_cover,
@@ -170,21 +169,16 @@ def write_animation_configuration(project_root: Path, runtime_directory: Path,
             context,
         )
         actor_files.append(files["potential_vorticity"])
-    if horizontal_section is not None:
-        pv = horizontal_section["potential_vorticity"]
-        for key in ("minimum_pvu", "maximum_pvu", "colour_steps", "hue", "dark_luminance", "light_luminance", "chroma"):
-            require_value(pv, (key,), f"de PV en la sección horizontal de {product_name}")
-        if float(pv["minimum_pvu"]) >= float(pv["maximum_pvu"]):
-            raise RuntimeError(f"El mínimo de PV debe ser menor que el máximo en {product_name}.")
-        wind = horizontal_section["wind"]
-        for key in ("spacing_degrees", "min_length_degrees", "max_length_degrees", "line_width"):
-            require_value(wind, (key,), f"del viento en la sección horizontal de {product_name}")
-        if horizontal_section["geopotential_height"]["enabled"]:
-            for key in ("minimum_gpm", "maximum_gpm", "interval_gpm"):
-                require_value(horizontal_section["geopotential_height"], (key,), f"de geopotencial en {product_name}")
-        files["pv_colourbar"] = render_template(template_environment, "horizontal_pv_colourbar.actor.conf.j2", runtime_directory / "horizontal_pv_colourbar.actor.conf", context)
-        files["horizontal_section"] = render_template(template_environment, "horizontal_section.actor.conf.j2", runtime_directory / "horizontal_section.actor.conf", context)
-        actor_files.extend((files["pv_colourbar"], files["horizontal_section"]))
+    for section in horizontal_sections:
+        section_context = {**context, "horizontal_section": section}
+        for layer_name, layer in section["layers"].items():
+            if layer in section["scalar_layers"] and layer["type"] == "filled_contours":
+                name = f"section_{section['name']}_{layer_name}_colourbar"
+                files[name] = render_template(template_environment, "horizontal_colourbar.actor.conf.j2", runtime_directory / f"{name}.actor.conf", {**section_context, "colour_layer": layer})
+                actor_files.append(files[name])
+        name = f"section_{section['name']}"
+        files[name] = render_template(template_environment, "horizontal_section.actor.conf.j2", runtime_directory / f"{name}.actor.conf", section_context)
+        actor_files.append(files[name])
     if jet is not None:
         files["jet"] = render_template(
             template_environment,

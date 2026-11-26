@@ -13,6 +13,7 @@ import numpy as np
 from netCDF4 import Dataset, num2date
 
 from visualize.met3D.configuration import load_yaml_configuration, require_value
+from visualize.met3D.horizontal_sections import prepare_horizontal_sections, select_horizontal_section_data
 from visualize.met3D.colormaps import prepare_pressure_colour_bands, encode_met3d_rgb_colour
 from visualize.met3D.native import (
     encode_qrectf_variant, encode_text_position_variant, encode_text_colour_variant,
@@ -145,7 +146,7 @@ def prepare_product_objects(project_root: Path, animation: dict, scene: dict, re
     if surface_temperature is not None and surface_precipitation is not None:
         raise RuntimeError(f"El relieve de {product_name} debe colorearse con temperatura o precipitación; seleccione sólo un campo.")
     potential_vorticity = get_enabled_object(objects, "potential_vorticity", product_name)
-    horizontal_section = get_enabled_object(objects, "horizontal_section", product_name)
+    horizontal_sections = prepare_horizontal_sections(objects, variables, product_name)
     jet = get_enabled_object(objects, "jet", product_name)
     cold_air = get_enabled_object(objects, "cold_air", product_name)
     cloud_cover = get_enabled_object(objects, "cloud_cover", product_name)
@@ -154,8 +155,8 @@ def prepare_product_objects(project_root: Path, animation: dict, scene: dict, re
     streamlines = get_enabled_object(objects, "streamlines", product_name)
     time_label = get_enabled_object(objects, "time_label", product_name)
     pv_render_mode = None
-    if potential_vorticity is None and jet is None and cold_air is None and relative_humidity is None and streamlines is None and cloud_cover is None:
-        raise RuntimeError(f"La animación {product_name} debe habilitar al menos un objeto tridimensional.")
+    if potential_vorticity is None and jet is None and cold_air is None and relative_humidity is None and streamlines is None and cloud_cover is None and not horizontal_sections:
+        raise RuntimeError(f"La animación {product_name} debe habilitar al menos un objeto volumétrico o una sección horizontal.")
 
     required_variables: list[str] = []
     derived_variable_mappings: list[str] = []
@@ -365,16 +366,16 @@ def prepare_product_objects(project_root: Path, animation: dict, scene: dict, re
         linear_grey = luminance / 903.3 if luminance <= 8 else ((luminance + 16) / 116) ** 3
         grey = 12.92 * linear_grey if linear_grey <= 0.0031308 else 1.055 * linear_grey ** (1 / 2.4) - 0.055
         cloud_cover["colour_xyz"] = encode_met3d_rgb_colour([round(grey * 255)] * 3)
-    if potential_vorticity is not None:
+    section_pv = any(field["derived"] for section in horizontal_sections for field in section["fields"])
+    if potential_vorticity is not None or section_pv:
         for variable_name in ("air_temperature", "wind_u", "wind_v"):
-            required_variables.append(str(require_value(variables, (variable_name,), f"de animación {product_name}")))
-        derived_variable_mappings.extend(
-            [
-                f"eastward_wind:{variables['wind_u']}",
-                f"northward_wind:{variables['wind_v']}",
-                f"air_temperature:{variables['air_temperature']}",
-            ]
-        )
+            required_variables.append(str(require_value(variables, (variable_name,), f"de cálculo de PV de {product_name}")))
+        derived_variable_mappings.extend([
+            f"eastward_wind:{variables['wind_u']}",
+            f"northward_wind:{variables['wind_v']}",
+            f"air_temperature:{variables['air_temperature']}",
+        ])
+    if potential_vorticity is not None:
         require_value(potential_vorticity, ("pressure", "bottom_hpa"), f"del objeto PV de {product_name}")
         require_value(potential_vorticity, ("pressure", "top_hpa"), f"del objeto PV de {product_name}")
         # Las configuraciones anteriores conservan su isosuperficie sin cambios.
@@ -384,13 +385,17 @@ def prepare_product_objects(project_root: Path, animation: dict, scene: dict, re
         elif pv_render_mode == "dvr":
             for key in ("threshold_pvu", "ray_step_size", "colour_steps", "colourbar_position"):
                 require_value(potential_vorticity, (key,), f"del DVR de PV de {product_name}")
-            if horizontal_section is None:
-                raise RuntimeError(f"El DVR de PV de {product_name} requiere la sección horizontal como referencia de color.")
-            colour_reference = require_value(horizontal_section, ("potential_vorticity",), f"de sección horizontal de {product_name}")
-            for key in ("minimum_pvu", "maximum_pvu", "hue", "dark_luminance", "light_luminance", "chroma"):
-                require_value(colour_reference, (key,), f"de rampa de PV de {product_name}")
-            minimum_pvu = float(colour_reference["minimum_pvu"])
-            maximum_pvu = float(colour_reference["maximum_pvu"])
+            reference = require_value(potential_vorticity, ("colour_reference",), f"del DVR de {product_name}")
+            reference_section = next((section for section in horizontal_sections if section["name"] == require_value(reference, ("section",), f"de referencia de color de {product_name}")), None)
+            reference_layer = require_value(reference, ("layer",), f"de referencia de color de {product_name}")
+            if reference_section is None or reference_layer not in reference_section["layers"]:
+                raise RuntimeError(f"El DVR de {product_name} requiere una sección y un gráfico de referencia habilitados.")
+            colour_reference = reference_section["layers"][reference_layer]
+            if colour_reference not in reference_section["scalar_layers"] or colour_reference["type"] != "filled_contours" or colour_reference["variable"] != "potential_vorticity":
+                raise RuntimeError(f"La referencia del DVR de {product_name} debe ser un relleno de PV habilitado.")
+            potential_vorticity["colour_style"] = colour_reference
+            minimum_pvu = float(colour_reference["minimum"])
+            maximum_pvu = float(colour_reference["maximum"])
             threshold_pvu = float(potential_vorticity["threshold_pvu"])
             if (
                 not all(math.isfinite(value) for value in (minimum_pvu, maximum_pvu, threshold_pvu))
@@ -439,21 +444,17 @@ def prepare_product_objects(project_root: Path, animation: dict, scene: dict, re
         surface_pressure_variable = str(require_value(variables, ("surface_pressure",), f"de animación {product_name}"))
         required_variables.append(surface_pressure_variable)
         derived_variable_mappings.append(f"surface_air_pressure:{surface_pressure_variable}")
-    if horizontal_section is not None:
-        if potential_vorticity is None:
-            raise RuntimeError(f"La sección horizontal de {product_name} requiere la PV habilitada.")
-        for key in ("pressure_hpa", "potential_vorticity", "wind", "geopotential_height"):
-            require_value(horizontal_section, (key,), f"de la sección horizontal de {product_name}")
-        geopotential_height = horizontal_section["geopotential_height"]
-        if require_value(geopotential_height, ("enabled",), f"de geopotencial de {product_name}"):
-            required_variables.append(str(require_value(variables, ("geopotential_height",), f"de animación {product_name}")))
+    for section in horizontal_sections:
+        for field in section["fields"]:
+            if not field["derived"]:
+                required_variables.append(field["name"])
     require_value(animation, ("camera",), f"de animación {product_name}")
 
     # Cada producto declara los campos y las máscaras de su NetCDF de visualización.
     data_preparation = animation.get("data_preparation")
     if reuse_netcdf and data_preparation is None:
         raise RuntimeError(f"La animación {product_name} no genera un NetCDF de visualización para --reuse-temporal.")
-    if (cold_air is not None or relative_humidity is not None or streamlines is not None or cloud_cover is not None or surface_precipitation is not None) and data_preparation is None:
+    if (cold_air is not None or relative_humidity is not None or streamlines is not None or cloud_cover is not None or surface_precipitation is not None or any(section["wind"] is not None for section in horizontal_sections)) and data_preparation is None:
         raise RuntimeError(f"La animación {product_name} requiere data_preparation para excluir niveles bajo tierra.")
     preparation_variables = {}
     surface_pressure_name = None
@@ -475,6 +476,11 @@ def prepare_product_objects(project_root: Path, animation: dict, scene: dict, re
         for role in ("wind_u", "wind_v", "wind_omega"):
             if preparation_variables[variables[role]].get("mask_below_surface") is not True or surface_pressure_name is None:
                 raise RuntimeError(f"La circulación 3D de {product_name} requiere enmascarar {variables[role]} bajo superficie y declarar presión superficial.")
+    for section in horizontal_sections:
+        if section["wind"] is not None:
+            for role in ("wind_u", "wind_v"):
+                if preparation_variables[variables[role]].get("mask_below_surface") is not True or surface_pressure_name is None:
+                    raise RuntimeError(f"La sección {section['name']} de {product_name} requiere enmascarar {variables[role]} bajo superficie y declarar presión superficial.")
     if cloud_cover is not None:
         cloud_name = variables["cloud_cover"]
         if preparation_variables[cloud_name].get("mask_below_surface") is not True or surface_pressure_name is None:
@@ -497,7 +503,7 @@ def prepare_product_objects(project_root: Path, animation: dict, scene: dict, re
             "surface_precipitation": surface_precipitation,
             "geographic_lines": geographic_lines,
             "potential_vorticity": potential_vorticity,
-            "horizontal_section": horizontal_section,
+            "horizontal_sections": horizontal_sections,
             "jet": jet,
             "cold_air": cold_air,
             "cloud_cover": cloud_cover,
@@ -524,7 +530,7 @@ def select_product_data(animation: dict, scene: dict, product: dict, netcdf_file
     surface_temperature = product["objects"]["surface_temperature"]
     surface_precipitation = product["objects"]["surface_precipitation"]
     cloud_cover = product["objects"]["cloud_cover"]
-    horizontal_section = product["objects"]["horizontal_section"]
+    horizontal_sections = product["objects"]["horizontal_sections"]
     relative_humidity = product["objects"]["relative_humidity"]
     mean_sea_level_pressure = product["objects"]["mean_sea_level_pressure"]
     streamlines = product["objects"]["streamlines"]
@@ -660,28 +666,9 @@ def select_product_data(animation: dict, scene: dict, product: dict, netcdf_file
         timeline["frames_per_interval"] = frames_per_interval
         timeline["camera_runtime_seconds"] = frame_count
         timeline["frame_count"] = frame_count
-    if horizontal_section is not None:
-        requested_pressure = float(horizontal_section["pressure_hpa"])
-        with Dataset(netcdf_file) as dataset:
-            if "lev" not in dataset.variables or getattr(dataset["lev"], "units", "") != "millibars":
-                raise RuntimeError(f"El NetCDF {netcdf_file.name} de {model_identifier} requiere lev en millibars.")
-            pressure_levels = [float(value) for value in dataset["lev"][:]]
-            if not pressure_levels:
-                raise RuntimeError(f"El NetCDF {netcdf_file.name} de {model_identifier} no contiene niveles de presión.")
-            pressure_hpa = min(pressure_levels, key=lambda level: (abs(level - requested_pressure), -level))
-            if not float(scene["view_pressure"]["top_hpa"]) <= pressure_hpa <= float(scene["view_pressure"]["bottom_hpa"]):
-                raise RuntimeError(f"{model_identifier}, {netcdf_file.name}: el nivel {pressure_hpa:g} hPa queda fuera de la escena {product_name}.")
-            section_variables = [str(variables[key]) for key in ("air_temperature", "wind_u", "wind_v")]
-            if horizontal_section["geopotential_height"]["enabled"]:
-                section_variables.append(str(variables["geopotential_height"]))
-            for variable_name in section_variables:
-                variable = dataset[variable_name]
-                if variable.dimensions != ("time", "lev", "latitude", "longitude"):
-                    raise RuntimeError(f"{model_identifier}, {netcdf_file.name}: {variable_name} no tiene dimensiones isobáricas canónicas.")
-                if horizontal_section["geopotential_height"]["enabled"] and variable_name == variables["geopotential_height"] and getattr(variable, "units", "") != "gpm":
-                    raise RuntimeError(f"{model_identifier}, {netcdf_file.name}: {variable_name} requiere unidades gpm para los contornos.")
-        horizontal_section["effective_pressure_hpa"] = pressure_hpa
-        print(f"Sección horizontal {model_identifier}, {netcdf_file.name}: nivel solicitado {requested_pressure:g} hPa; nivel utilizado {pressure_hpa:g} hPa.")
+    if horizontal_sections:
+        select_horizontal_section_data(horizontal_sections, variables, scene, netcdf_file, metadata, timeline,
+                                       product["preparation_variables"], product["surface_pressure_name"])
     return metadata, timeline
 
 

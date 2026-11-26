@@ -93,6 +93,14 @@ def prepare_animation(
         "product": product_name, "nodata_policy": "preserve",
         "appearance": {key: value for key, value in scene["appearance"].items() if not key.endswith("_variant")},
         "variables": list(dict.fromkeys(product["required_variables"])),
+        "horizontal_sections": [
+            {"name": section["name"], "requested_pressure_hpa": section["pressure_hpa"],
+             "effective_pressure_hpa": section["effective_pressure_hpa"],
+             "level_selection": section["level_selection"],
+             "layers": [{"name": name, "type": layer["type"]}
+                        for name, layer in section["layers"].items() if layer["enabled"] is True]}
+            for section in product["objects"]["horizontal_sections"]
+        ],
         "data_preparation": {
             "variables": product["preparation_variables"],
             "surface_pressure_variable": product["surface_pressure_name"],

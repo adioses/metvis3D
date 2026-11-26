@@ -17,6 +17,16 @@ variables:
   surface_pressure: pressfc
   geopotential_height: hgtprs
 
+# Temporal de visualización con niveles nativos y máscaras bajo superficie.
+data_preparation:
+  surface_pressure: surface_pressure
+  variables:
+    air_temperature: {units: K, mask_below_surface: true}
+    wind_u: {units: m/s, mask_below_surface: true}
+    wind_v: {units: m/s, mask_below_surface: true}
+    surface_pressure: {units: Pa, mask_below_surface: false}
+    geopotential_height: {units: gpm, mask_below_surface: true}
+
 objects:
   # Modelo y tiempo válido UTC, fijos en la parte superior central.
   time_label:
@@ -42,43 +52,53 @@ objects:
     isosurface_pvu: -5.0
     opacity: 0.65
 
-  horizontal_section:
-    enabled: true
-    pressure_hpa: 350.0
-    potential_vorticity:
-      minimum_pvu: -10.0
-      maximum_pvu: -2.0
-      colour_steps: 8
-      hue: 290.0
-      dark_luminance: 30.0
-      light_luminance: 85.0
-      chroma: 60.0
-    wind:
-      spacing_degrees: 2.0
-      min_length_degrees: 0.1
-      max_length_degrees: 0.75
-      line_width: 0.04
-    geopotential_height:
+  horizontal_sections:
+    dana_350:
       enabled: true
-      minimum_gpm: 0.0
-      maximum_gpm: 26000.0
-      interval_gpm: 120.0
+      pressure_hpa: 350.0
+      level_selection: nearest_native
+      layers:
+        potential_vorticity:
+          enabled: true
+          type: filled_contours
+          variable: potential_vorticity
+          minimum: -10.0
+          maximum: -2.0
+          units: PVU
+          value_scale: 1000000.0
+          label: 'PV [PVU]'
+          colour_steps: 8
+          hue: 290.0
+          dark_luminance: 30.0
+          light_luminance: 85.0
+          chroma: 60.0
+          extend_below_min: true
+          extend_above_max: false
+          legend_position: {x: 0.85, y: 0.8, width: 0.05, height: 0.6}
+        wind:
+          enabled: true
+          type: wind_barbs
+          spacing_degrees: 2.0
+          min_length_degrees: 0.1
+          max_length_degrees: 0.75
+          line_width: 0.04
+          colour: [0, 0, 127, 255]
+        geopotential_height:
+          enabled: true
+          type: line_contours
+          variable: geopotential_height
+          minimum: 0.0
+          maximum: 26000.0
+          interval: 120.0
+          units: gpm
+          value_scale: 1.0
+          line_width: 2.0
+          colour: [0, 0, 0, 255]
 
 # La orientación se almacena en el formato nativo y legible de cámara de
 # Met.3D. origin es la posición de cámara; los ejes y/z fijan su orientación.
 # Puede ajustarse en la interfaz y copiarse de vuelta a este YAML.
 camera:
-  trajectory:
-    enabled: true
-    type: orbit
-    minimum_frames: 81
-    frames_per_interval: 2
-    keyframes: 17
-    zoom_factor: 0.94
-    target_world_z: 0.0
-    zoom_fraction: 0.1
-    end_hold_fraction: 0.125
-    tension: 0.0
   origin:
     longitude: -30.441743850708008
     latitude: -115.15374755859375
