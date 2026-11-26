@@ -1,0 +1,64 @@
+{% extends "design_base.html" %}
+{% block title %}{% if design == 'editorial' %}Diseño editorial{% else %}Diseño panorámico{% endif %}{% endblock %}
+{% block scripts %}
+  <script id="website-settings" type="application/json">{{ {'catalog_url': url_for('website.videos'), 'playback': settings.playback}|tojson }}</script>
+  {% if design == 'editorial' %}<script id="editorial-settings" type="application/json">{{ editorial_animations|tojson }}</script>{% endif %}
+  <script type="module" src="{{ url_for('static', filename='js/design-viewer.js') }}"></script>
+{% endblock %}
+{% block collections %}<nav id="collections" class="collections" aria-label="Colecciones"></nav>{% endblock %}
+{% block content %}
+  <section class="viewer-intro" aria-label="Explorar la biblioteca">
+    {% if design == 'editorial' %}
+    <div class="editorial-intro-title"><h1>La atmósfera<br> en movimiento<span class="accent-mark">.</span></h1></div>
+    {% else %}
+    <div class="intro-copy">
+      <h1>La atmósfera, en detalle<span class="accent-mark">.</span></h1><p>Selecciona una animación y explora su estructura tridimensional.</p>
+    </div>
+    {% endif %}
+    <section id="filters-panel" class="filters-panel" aria-label="Filtrar animaciones" hidden>
+      {% if design == 'editorial' %}
+      {% for field, label in editorial_filters.items() %}<div class="filter"><label for="{{ field }}-filter">{{ label }}</label><select id="{{ field }}-filter"></select></div>{% endfor %}
+      {% else %}
+      <div class="filter"><label for="date-filter">Fecha de referencia</label><select id="date-filter"></select></div>
+      <div class="filter"><label for="cycle-filter">Ciclo UTC</label><select id="cycle-filter"></select></div>
+      <div class="filter"><label for="scene-filter">Escena</label><select id="scene-filter"></select></div>
+      <div class="filter"><label for="software-filter">Herramienta</label><select id="software-filter"></select></div>
+      {% endif %}
+    </section>
+  </section>
+  <section id="results-section" aria-label="Animaciones disponibles" aria-busy="true">
+    {% if design == 'editorial' %}<p id="results-description" class="visually-hidden" role="status">Cargando biblioteca…</p>{% else %}<div class="results-heading"><p id="results-description" role="status">Cargando biblioteca…</p><p>Referencias en <strong>UTC</strong></p></div>{% endif %}
+    <p id="catalog-error" class="error-message" role="alert" hidden></p>
+    <div id="empty-state" class="empty-state" hidden><svg class="icon"><use href="#icon-film"/></svg><h2>Sin animaciones disponibles</h2><p>Esta colección no tiene videos publicados para la selección actual.</p></div>
+    <div id="viewer-workspace" class="viewer-workspace" hidden>
+      <section class="viewer-main" aria-label="Video seleccionado">
+        {% if design == 'editorial' %}
+        <div class="editorial-video-heading"><h2 id="video-title"></h2><p id="animation-description" hidden></p></div>
+        {% else %}
+        <div class="selected-heading"><div><p id="video-context" class="eyebrow"></p><h2 id="video-title"></h2></div><p id="video-reference"></p></div>
+        <div class="video-selection">
+          <div class="model-group"><span id="model-label" class="control-label">Modelo / fuente</span><div id="models" class="models" role="group" aria-labelledby="model-label"></div></div>
+          <div id="version-group" class="version-group" hidden><label for="version-filter">Video disponible</label><select id="version-filter"></select></div>
+        </div>
+        {% endif %}
+        <div class="video-stage"><video id="main-video" controls playsinline preload="none" aria-labelledby="video-title"></video><p id="poster-note" hidden>Sin miniatura disponible. Usa Reproducir para ver el video.</p></div>
+        <p id="playback-error" class="error-message" role="alert" hidden></p>
+        <div class="playback-tools">
+          <label class="loop-control"><input id="loop-control" type="checkbox"> Repetir</label>
+          <label class="speed-control" for="speed-control">Velocidad <select id="speed-control"></select></label>
+          <button id="fullscreen-control" class="secondary-button" type="button"><svg class="icon"><use href="#icon-fullscreen"/></svg><span>Pantalla completa</span></button>
+          <a id="download-video" class="download-button" download><svg class="icon"><use href="#icon-download"/></svg>Descargar MP4</a>
+        </div>
+      </section>
+      <aside class="animation-navigation" aria-labelledby="animations-heading"><div class="navigation-heading"><h2 id="animations-heading">Explorar animaciones</h2><span id="animation-count"></span></div><nav id="animations" class="animations" aria-label="Seleccionar animación"></nav></aside>
+    </div>
+    {% if design == 'editorial' %}
+    <section id="video-previews-section" class="video-previews-section" aria-labelledby="previews-heading" hidden>
+      <div class="previews-heading"><div><h2 id="previews-heading">Videos disponibles</h2><p id="preview-count"></p></div><div class="preview-navigation"><button id="previews-previous" type="button" aria-controls="video-previews" disabled>Anteriores</button><button id="previews-next" type="button" aria-controls="video-previews" disabled>Siguientes</button></div></div>
+      <div id="video-previews" class="video-previews" role="group" aria-labelledby="previews-heading"></div>
+    </section>
+    {% endif %}
+    <details id="video-information" class="video-information" hidden><summary>Información de la animación</summary><div class="information-content">{% if design != 'editorial' %}<p id="animation-description" hidden></p>{% endif %}<dl id="video-details"></dl><div id="extra-metadata"></div></div></details>
+  </section>
+  <noscript><p class="error-message">Activa JavaScript para consultar el catálogo y reproducir los videos.</p></noscript>
+{% endblock %}

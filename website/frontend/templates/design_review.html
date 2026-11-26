@@ -1,0 +1,23 @@
+{% extends "design_base.html" %}
+{% block content %}
+  <section class="review-intro">
+    <p class="eyebrow">Biblioteca meteorológica</p>
+    <h1>Una biblioteca.<br>Tres formas de explorar<span class="accent-mark">.</span></h1>
+    <p>Compara las opciones con los mismos videos, filtros y controles. La página principal conserva su diseño actual.</p>
+  </section>
+  <div class="design-options">
+    <article class="design-option">
+      <div class="layout-preview preview-current" aria-hidden="true"><div class="preview-header"></div><div class="preview-filters"></div><div class="preview-grid">{% for i in range(8) %}<span></span>{% endfor %}</div></div>
+      <div class="option-content"><p class="eyebrow">Diseño actual</p><h2>La biblioteca completa</h2><p>Cuadrícula de miniaturas y reproductor en una ventana. El punto de partida para comparar.</p><a class="option-link" href="{{ url_for('website.index') }}">Abrir diseño actual</a></div>
+    </article>
+    <article class="design-option">
+      <div class="layout-preview preview-editorial" aria-hidden="true"><div class="preview-header"></div><div class="preview-hero"></div><div class="preview-editorial-body"><div class="preview-video"></div><div class="preview-list"><span></span><span></span><span></span><span></span></div></div></div>
+      <div class="option-content"><p class="eyebrow">Inspirado en tu referencia</p><h2>Editorial</h2><p>Un visor protagonista y una lista lateral de animaciones. Cambia de modelo sin perder el contexto.</p><a class="option-link" href="{{ url_for('website.editorial_design') }}">Abrir diseño editorial</a></div>
+    </article>
+    <article class="design-option">
+      <div class="layout-preview preview-panoramic" aria-hidden="true"><div class="preview-header"></div><div class="preview-filters"></div><div class="preview-video"></div><div class="preview-tabs"><span></span><span></span><span></span><span></span></div></div>
+      <div class="option-content"><p class="eyebrow">La segunda propuesta visual</p><h2>Panorámico</h2><p>Más anchura para ver el detalle. Filtros superiores y navegación por producto debajo del video.</p><a class="option-link" href="{{ url_for('website.panoramic_design') }}">Abrir diseño panorámico</a></div>
+    </article>
+  </div>
+  <p class="review-note">Las dos alternativas utilizan los MP4 y las miniaturas publicados. Selecciona un video y usa los enlaces superiores para verlo en la otra alternativa.</p>
+{% endblock %}

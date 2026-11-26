@@ -1,0 +1,23 @@
+# Orden y etiquetas de los filtros visibles del diseño editorial.
+# Para reincorporar ciclos, añadir: cycle: Ciclo UTC
+# La fila se distribuye automáticamente si se incorporan más filtros.
+editorial_filters:
+  date: Fecha (UTC)
+  scene: Escena
+  software: Herramienta
+
+# Textos de presentación exclusivos del editorial; los identificadores no cambian.
+editorial_animations:
+  dana:
+    short_description: Depresiones Aisladas en Niveles Altos
+  dana_dvr:
+    short_description: Depresiones Aisladas en Niveles Altos
+  jet:
+    short_description: Jet en niveles altos
+  friaje:
+    short_description: Ingreso de aire frío
+  anticyclones:
+    short_description: Sistemas de alta presión
+  clouds:
+    title: Nubosidad y precipitación
+    short_description: Campos asociados a precipitación

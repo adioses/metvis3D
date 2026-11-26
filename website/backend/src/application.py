@@ -6,7 +6,7 @@ from flask import Blueprint, Flask, abort, jsonify, render_template, request, se
 from werkzeug.exceptions import HTTPException
 
 from catalog import (CatalogError, WEBSITE_ROOT, parse_video_name, published_file,
-                     read_catalog, read_website_config)
+                     read_catalog, read_website_config, read_yaml)
 
 
 def create_app(config_path=None):
@@ -21,6 +21,37 @@ def create_app(config_path=None):
     @routes.get("/")
     def index():
         return render_template("index.html", settings=settings)
+
+    @routes.get("/disenos/")
+    def design_review():
+        return render_template("design_review.html", settings=settings, design="review")
+
+    @routes.get("/disenos/editorial")
+    def editorial_design():
+        try:
+            design_settings = read_yaml(WEBSITE_ROOT / "config/designs.yaml")
+            filters = design_settings.get("editorial_filters")
+            if (not isinstance(filters, dict) or not filters
+                    or set(filters) - {"date", "cycle", "scene", "software"}
+                    or any(not isinstance(label, str) or not label.strip() for label in filters.values())):
+                raise CatalogError("designs.yaml: editorial_filters requiere filtros date, cycle, scene o software con etiquetas no vacías.")
+            animations = design_settings.get("editorial_animations")
+            if not isinstance(animations, dict):
+                raise CatalogError("designs.yaml: editorial_animations requiere un mapa de textos por animación.")
+            for animation, description in animations.items():
+                if (not isinstance(description, dict) or not description
+                        or set(description) - {"title", "short_description"}
+                        or any(not isinstance(value, str) or not value.strip() for value in description.values())):
+                    raise CatalogError(f"designs.yaml: editorial_animations/{animation} requiere title o short_description como texto no vacío.")
+        except CatalogError as error:
+            app.logger.error("No se pudo preparar el diseño editorial: %s", error)
+            abort(422, description=f"Diseño editorial detenido: {error}")
+        return render_template("design_viewer.html", settings=settings, design="editorial",
+                               editorial_filters=filters, editorial_animations=animations)
+
+    @routes.get("/disenos/panoramico")
+    def panoramic_design():
+        return render_template("design_viewer.html", settings=settings, design="panoramic")
 
     @routes.get("/api/videos")
     def videos():
