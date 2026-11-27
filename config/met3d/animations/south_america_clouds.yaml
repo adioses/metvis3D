@@ -8,6 +8,8 @@ variables:
   cloud_cover: tcdcprs
   surface_pressure: pressfc
   precipitation: apcpsfc
+  wind_u: ugrdprs
+  wind_v: vgrdprs
 
 data_preparation:
   surface_pressure: surface_pressure
@@ -21,6 +23,12 @@ data_preparation:
     precipitation:
       units: kg/m^2
       mask_below_surface: false
+    wind_u:
+      units: m/s
+      mask_below_surface: true
+    wind_v:
+      units: m/s
+      mask_below_surface: true
 
 objects:
   time_label:
@@ -60,6 +68,21 @@ objects:
         font: DejaVu Sans
         font_size: 28
 
+  horizontal_sections:
+    wind_925:
+      enabled: true
+      pressure_hpa: 925.0
+      level_selection: exact
+      layers:
+        wind:
+          enabled: true
+          type: wind_barbs
+          spacing_degrees: 2.0
+          min_length_degrees: 0.1
+          max_length_degrees: 0.75
+          line_width: 0.04
+          colour: [0, 0, 127, 255]
+
   cloud_cover:
     enabled: true
     pressure: {bottom_hpa: 1000.0, top_hpa: 100.0}
@@ -75,9 +98,9 @@ objects:
 
 # Cámara fija para comparar la evolución de las estructuras atmosféricas.
 camera:
-  origin: {longitude: -60.93940353393555, latitude: -106.37992095947266, world_z: 58.74783706665039}
-  y_axis: {longitude: -0.04677024111151695, latitude: 0.5455600023269653, world_z: 0.836762011051178}
-  z_axis: {longitude: -0.0714731439948082, latitude: 0.833703339099884, world_z: -0.547561764717102}
+  origin: {longitude: -106.83655548095703, latitude: -38.66804885864258, world_z: 36.80714797973633}
+  y_axis: {longitude: 0.27788245677948, latitude: 0.5986446142196655, world_z: 0.7512604594230652}
+  z_axis: {longitude: 0.3163069784641266, latitude: 0.6814242601394653, world_z: -0.6599985957145691}
 
 timeline:
   selection: first_hours
